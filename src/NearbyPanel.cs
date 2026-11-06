@@ -74,7 +74,22 @@ namespace NearbyChests
             EnsureScrollable(Grid);
 
             _title = Find<TMP_Text>(src, gui.m_containerName.transform);
-            if (_title != null) StripLocalize(_title.gameObject);
+            if (_title != null)
+            {
+                StripLocalize(_title.gameObject);
+                // Left-aligned with a little padding, running up to the search box.
+                var trt = _title.rectTransform;
+                if (trt.parent == _root.transform)
+                {
+                    trt.anchorMin = new Vector2(0f, trt.anchorMin.y);
+                    trt.anchorMax = new Vector2(1f, trt.anchorMax.y);
+                    trt.pivot = new Vector2(0f, trt.pivot.y);
+                    trt.offsetMin = new Vector2(14f, trt.offsetMin.y);
+                    trt.offsetMax = new Vector2(-(SearchWidth + 24f), trt.offsetMax.y);
+                }
+                _title.alignment = TextAlignmentOptions.MidlineLeft;
+                _title.margin = trt.parent == _root.transform ? Vector4.zero : new Vector4(14f, 0f, 0f, 0f);
+            }
 
             var weight = Find<TMP_Text>(src, gui.m_containerWeight.transform);
             if (weight != null) weight.gameObject.SetActive(false);
