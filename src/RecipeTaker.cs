@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -94,27 +95,36 @@ namespace NearbyChests
             var player = Player.m_localPlayer;
             if (player == null) return;
 
-            var reqs = gui.m_reqList.Where(r => r?.m_resItem != null).ToList();
-            int Need(Piece.Requirement r) => r.GetAmount(_quality) * _multiplier;
+            var reqs = gui.m_reqList.Where(r => r?.m_resItem != null)
+                .Select(r => (r, r.GetAmount(_quality) * _multiplier)).ToList();
+            TakeFor(reqs, gui.m_selectedRecipe.Recipe.m_requireOnlyOneIngredient);
+        }
+
+        /// <summary>Take whatever is missing for a list of (requirement, amount needed).</summary>
+        public static void TakeFor(List<(Piece.Requirement req, int need)> reqs, bool requireOnlyOne)
+        {
+            var gui = InventoryGui.instance;
+            var player = Player.m_localPlayer;
+            if (!Plugin.Enabled.Value || player == null || reqs.Count == 0) return;
             int Have(Piece.Requirement r) => player.GetInventory().CountItems(r.m_resItem.m_itemData.m_shared.m_name);
 
-            if (gui.m_selectedRecipe.Recipe.m_requireOnlyOneIngredient)
+            if (requireOnlyOne)
             {
                 // Any single ingredient will do: stop if one is already covered, else take the first one the chests can cover.
-                if (reqs.Any(r => Have(r) >= Need(r))) { player.Message(MessageHud.MessageType.Center, "You already have what this recipe needs"); return; }
-                var pick = reqs.FirstOrDefault(r => Have(r) + ChestPool.CountForCrafting(r.m_resItem.m_itemData.m_shared.m_name) >= Need(r))
-                           ?? reqs.FirstOrDefault();
-                if (pick != null) TakeMissing(pick, Need(pick), report: true);
+                if (reqs.Any(x => Have(x.req) >= x.need)) { player.Message(MessageHud.MessageType.Center, "You already have what this recipe needs"); return; }
+                var pick = reqs.FirstOrDefault(x => Have(x.req) + ChestPool.CountForCrafting(x.req.m_resItem.m_itemData.m_shared.m_name) >= x.need);
+                if (pick.req == null) pick = reqs[0];
+                TakeMissing(pick.req, pick.need, report: true);
                 return;
             }
 
             int took = 0, short_ = 0;
             bool full = false;
-            foreach (var r in reqs)
+            foreach (var (r, need) in reqs)
             {
-                int missing = Need(r) - Have(r);
+                int missing = need - Have(r);
                 if (missing <= 0) continue;
-                int got = TakeMissing(r, Need(r), report: false, out bool f);
+                int got = TakeMissing(r, need, report: false, out bool f);
                 took += got;
                 if (got < missing) short_++;
                 full |= f;
@@ -129,8 +139,8 @@ namespace NearbyChests
             else
                 player.Message(MessageHud.MessageType.TopLeft, "Took the recipe's ingredients from nearby chests");
 
-            if (took > 0) gui.m_moveItemEffects.Create(player.transform.position, Quaternion.identity);
-            NearbyPanel.Rescan();
+            if (took > 0) gui?.m_moveItemEffects.Create(player.transform.position, Quaternion.identity);
+            NearbyPanel.ForceRescan();
         }
 
         public static int TakeMissing(Piece.Requirement req, int need, bool report) => TakeMissing(req, need, report, out _);

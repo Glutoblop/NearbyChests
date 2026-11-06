@@ -28,6 +28,11 @@ namespace NearbyChests
         private static TMP_Text _title;
         private static Button _takeRecipe;
         private static TMP_Text _takeRecipeLabel;
+        private static Button _modeButton;
+        private static TMP_Text _modeLabel;
+        private static TMP_Text _searchPlaceholder;
+        private static GameObject _gridArea;
+        private static bool _recipeMode;
         private static string _takeRecipeText;
         private static Button _tab;
         private static RectTransform _panelRt;
@@ -84,15 +89,27 @@ namespace NearbyChests
             if (_takeRecipe != null)
             {
                 _takeRecipe.onClick = new Button.ButtonClickedEvent();
-                _takeRecipe.onClick.AddListener(RecipeTaker.TakeSelectedRecipe);
+                _takeRecipe.onClick.AddListener(OnTakePressed);
                 _takeRecipeLabel = SetLabel(_takeRecipe, "Take recipe");
             }
 
-            var stackAll = Find<Button>(src, gui.m_stackAllButton.transform);
-            if (stackAll != null) stackAll.gameObject.SetActive(false);
-
             var font = gui.m_tabCraft.GetComponentInChildren<TMP_Text>(true)?.font;
             _search = CreateSearch((RectTransform)_root.transform, font);
+
+            // "Stack all" becomes the Items / Recipes switch.
+            _modeButton = Find<Button>(src, gui.m_stackAllButton.transform);
+            if (_modeButton != null)
+            {
+                _modeButton.onClick = new Button.ButtonClickedEvent();
+                _modeButton.onClick.AddListener(() => SetRecipeMode(!_recipeMode));
+                _modeLabel = SetLabel(_modeButton, "Recipes");
+            }
+
+            // The grid's top-level container inside the panel; the recipe browser takes its place.
+            var area = Grid.transform;
+            while (area.parent != null && area.parent != _root.transform) area = area.parent;
+            _gridArea = area.gameObject;
+            RecipeBrowser.Build(_panelRt, (RectTransform)area, font);
 
             View = new Inventory("Nearby", null, Columns, MinRows);
             BuildTab(gui);
@@ -210,8 +227,32 @@ namespace NearbyChests
                 _panelRt.offsetMax = new Vector2(_panelRt.offsetMax.x, newOffset);
         }
 
+        private static void SetRecipeMode(bool on)
+        {
+            _recipeMode = on;
+            if (_modeLabel != null) _modeLabel.text = on ? "Items" : "Recipes";
+            if (_searchPlaceholder != null) _searchPlaceholder.text = on ? "Search recipes or ingredients..." : "Search nearby chests...";
+            _takeRecipeText = null; // relabel
+            ApplyMode();
+        }
+
+        private static void ApplyMode()
+        {
+            bool show = _root != null && _root.activeSelf;
+            if (_gridArea != null && _gridArea.activeSelf == _recipeMode) _gridArea.SetActive(!_recipeMode);
+            RecipeBrowser.SetActive(show && _recipeMode);
+            if (!_recipeMode) _resetView = true;
+        }
+
+        private static void OnTakePressed()
+        {
+            if (_recipeMode) RecipeBrowser.TakeAllForSelected();
+            else RecipeTaker.TakeSelectedRecipe();
+        }
+
         public static void Destroy()
         {
+            RecipeBrowser.Destroy();
             if (_root != null) Object.Destroy(_root);
             if (_tab != null) Object.Destroy(_tab.gameObject);
             _tab = null; _tabActive = false; _takeRecipeLabel = null;
@@ -251,20 +292,23 @@ namespace NearbyChests
             if (_root.activeSelf != show)
             {
                 _root.SetActive(show);
-                if (show) _resetView = true;
+                if (show) { _resetView = true; ApplyMode(); }
             }
             if (!show) return;
 
             KeepTabsClear();
-            Grid.UpdateInventory(View, null, _gui.m_dragItem);
-            if (_resetView) { Grid.ResetView(); _resetView = false; }
+            if (!_recipeMode)
+            {
+                Grid.UpdateInventory(View, null, _gui.m_dragItem);
+                if (_resetView) { Grid.ResetView(); _resetView = false; }
+            }
             if (_takeRecipe != null)
             {
-                bool has = RecipeTaker.HasSelectedRecipe();
-                _takeRecipe.interactable = has;
-                string label = has
-                    ? "Take: " + Localization.instance.Localize(_gui.m_selectedRecipe.Recipe.m_item.m_itemData.m_shared.m_name)
-                    : "Take recipe";
+                var recipe = _recipeMode ? RecipeBrowser.Selected
+                    : RecipeTaker.HasSelectedRecipe() ? _gui.m_selectedRecipe.Recipe : null;
+                _takeRecipe.interactable = recipe != null;
+                string label = recipe == null ? (_recipeMode ? "Take all missing" : "Take recipe")
+                    : (_recipeMode ? "Take all missing" : "Take: " + Localization.instance.Localize(recipe.m_item.m_itemData.m_shared.m_name));
                 if (_takeRecipeLabel != null && label != _takeRecipeText) { _takeRecipeLabel.text = label; _takeRecipeText = label; }
             }
         }
@@ -277,7 +321,9 @@ namespace NearbyChests
             {
                 _search.SetTextWithoutNotify(string.Empty);
                 _query = string.Empty;
+                RecipeBrowser.SetQuery(string.Empty);
             }
+            RecipeBrowser.SetActive(false);
             if (_search != null && _search.isFocused) _search.DeactivateInputField();
             _shownSignature = 0;
         }
@@ -298,6 +344,7 @@ namespace NearbyChests
                 _shownSignature = sig;
                 RebuildView();
             }
+            RecipeBrowser.Refresh();
         }
 
         private static void RebuildView()
@@ -438,6 +485,7 @@ namespace NearbyChests
 
             var placeholder = CreateText(areaRt, "Placeholder", font);
             placeholder.text = "Search nearby chests...";
+            _searchPlaceholder = placeholder;
             placeholder.fontStyle = FontStyles.Italic;
             placeholder.color = new Color(1f, 1f, 1f, 0.4f);
 
@@ -486,6 +534,7 @@ namespace NearbyChests
         {
             _query = value ?? string.Empty;
             _resetView = true;
+            RecipeBrowser.SetQuery(_query);
             ForceRescan();
         }
 

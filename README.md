@@ -13,7 +13,8 @@ Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for f
 - **Works like a chest**: drag a stack into your inventory, Shift-click to split, Ctrl-click to move the whole stack to your inventory. Items come out of the real chests, nearest first.
 - **Store too**: drag an item from your inventory onto the panel, or Ctrl-click it in your inventory, to put it in the nearby chests (chests that already hold that item first).
 - **Search**: a search box at the top of the panel filters it with forgiving fuzzy matching, same as Recipe Search.
-- **Take a recipe's ingredients**: select a recipe, then
+- **Recipe browser**: the **Recipes** button on the Nearby tab lists every recipe your character has unlocked, from any crafting station, with search by name or ingredient. Pick one to see what you carry and what the chests hold for each ingredient; click an ingredient to take what is missing, or **Take all missing**.
+- **At a crafting station**: select a recipe, then
   - click an ingredient in the crafting panel to take just the amount you're missing, or
   - press **Take recipe** on the Nearby panel to take everything the recipe is short of (respects the x5 multi-craft amount and upgrade quality).
 - **Crafting hints**: an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count.
