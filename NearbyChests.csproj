@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>NearbyChests</AssemblyName>
+    <RootNamespace>NearbyChests</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <!-- Required by the publicizer so we can touch private game members directly. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DebugType>portable</DebugType>
+    <!-- Unity's Mono BCL vs netstandard2.1 facade version mismatch (System.Net.Http etc.); harmless at runtime. -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+
+    <GameDir Condition="'$(GameDir)' == ''">G:\Steam\steamapps\common\Valheim</GameDir>
+    <ManagedDir>$(GameDir)\valheim_Data\Managed</ManagedDir>
+    <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx"><HintPath>$(BepInExDir)\core\BepInEx.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(BepInExDir)\core\0Harmony.dll</HintPath><Private>false</Private></Reference>
+
+    <Reference Include="assembly_valheim" Publicize="true"><HintPath>$(ManagedDir)\assembly_valheim.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="assembly_utils" Publicize="true"><HintPath>$(ManagedDir)\assembly_utils.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="assembly_guiutils" Publicize="true"><HintPath>$(ManagedDir)\assembly_guiutils.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="gui_framework"><HintPath>$(ManagedDir)\gui_framework.dll</HintPath><Private>false</Private></Reference>
+
+    <Reference Include="UnityEngine"><HintPath>$(ManagedDir)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(ManagedDir)\UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(ManagedDir)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Drop the built dll straight into the game's plugin folder. -->
+  <Target Name="CopyToPlugins" AfterTargets="Build">
+    <MakeDir Directories="$(BepInExDir)\plugins\NearbyChests" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BepInExDir)\plugins\NearbyChests" />
+    <!-- Committed build output: the Valheim Mod Installer downloads dist/NearbyChests.dll from GitHub. -->
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(MSBuildProjectDirectory)\dist" />
+  </Target>
+
+</Project>

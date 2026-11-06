@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "NearbyChests",
+  "name": "Nearby Chests",
+  "guid": "jordan.valheim.nearbychests",
+  "version": "0.1.0",
+  "author": "Glutoblop",
+  "description": "Adds a Nearby chests panel to your inventory listing everything in chests within 30m, and lets you take items, or a selected recipe's missing ingredients, straight into your inventory.",
+  "repo": "Glutoblop/NearbyChests",
+  "branch": "main",
+  "client_only": true,
+  "files": ["dist/NearbyChests.dll"],
+  "install_dir": "BepInEx/plugins/NearbyChests",
+  "requires": {
+    "BepInExPack_Valheim": "5.4.2360"
+  },
+  "valheim": {
+    "version": "1.0.21",
+    "network_version": 41,
+    "steam_build": 26249040,
+    "last_tested": "2026-11-06"
+  },
+  "changelog": {
+    "0.1.0": "Initial release: Nearby chests panel (30m), click to take items, click recipe ingredients or 'Take recipe' to pull missing materials."
+  }
+}

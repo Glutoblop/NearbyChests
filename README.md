@@ -1,0 +1,70 @@
+# Nearby Chests
+
+![version](https://img.shields.io/badge/version-0.1.0-blue) ![valheim](https://img.shields.io/badge/Valheim-1.0.21-orange) ![client](https://img.shields.io/badge/client--side-only-green)
+
+A BepInEx plugin for Valheim.
+
+Open your inventory and see everything stored in the chests around you, in one place, then take what you need without walking to each chest. Pick a recipe at a crafting station and pull its missing ingredients from those chests with one click.
+
+Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for finding the recipe first.
+
+## Features
+- **Nearby chests panel**: when the inventory is open and no chest is, the empty container area under your inventory lists the combined contents of every chest within 30 m (stacks summed, nearest chests used first).
+- **Take items**: left-click an item to take one stack; Shift/Ctrl-click or right-click to take all of it (as much as fits).
+- **Take a recipe's ingredients**: select a recipe, then
+  - click an ingredient in the crafting panel to take just the amount you're missing, or
+  - press **Take recipe** on the Nearby panel to take everything the recipe is short of (respects the x5 multi-craft amount and upgrade quality).
+- **Crafting hints**: an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count.
+- Skips chests another player has open, private chests that aren't yours, and chests inside wards you can't access. Tombstones are excluded by default.
+
+## Configuration (`BepInEx/config/jordan.valheim.nearbychests.cfg`)
+| Section | Key | Default | What it does |
+|---|---|---|---|
+| General | Enabled | true | Turn the plugin on or off. |
+| General | Range | 30 | Chests within this many metres are included. |
+| General | IncludeTombstones | false | Include tombstones in the pool. |
+| General | IncludeCartsAndShips | true | Include cart and ship storage. |
+| Panel | ShowPanel | true | Show the Nearby chests panel (toggled by ToggleKey). |
+| Panel | ToggleKey | None | Hotkey to show/hide the panel while the inventory is open. |
+| Panel | RefreshInterval | 0.5 | Seconds between rescans while the inventory is open. |
+| Crafting | RequirementHints | true | Yellow amounts + nearby counts on crafting ingredients. |
+
+## Install
+
+### Easiest: Valheim Mod Installer
+Download the [**Valheim Mod Installer**](https://github.com/Glutoblop/ValheimPlugins) and run it (`Start-Installer.bat` on Windows, `start-installer.sh` on Linux/macOS), point it at your Valheim folder, tick **Nearby Chests** and click **Install / Update**. It installs BepInEx for you if needed.
+
+### Manual
+Download from the [latest release](https://github.com/Glutoblop/NearbyChests/releases/latest) ([`NearbyChests.zip`](https://github.com/Glutoblop/NearbyChests/releases/latest/download/NearbyChests.zip): unzip into your Valheim folder), or:
+
+1. Install [BepInExPack_Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/) (5.4.2360 or newer) into your Valheim folder.
+2. Download [`dist/NearbyChests.dll`](https://github.com/Glutoblop/NearbyChests/raw/main/dist/NearbyChests.dll).
+3. Copy it to `<Valheim>/BepInEx/plugins/NearbyChests/NearbyChests.dll`.
+4. Launch the game once; settings are written to `BepInEx/config/jordan.valheim.nearbychests.cfg`.
+
+## Compatibility
+
+| | |
+|---|---|
+| Plugin version | **0.1.0** |
+| Last tested on Valheim | **1.0.21** (network version 41, Steam build 26249040) on 2026-11-06 |
+| BepInExPack_Valheim | 5.4.2360 |
+| Multiplayer | Client-side only: works on vanilla servers, other players don't need it |
+
+Taking from a chest claims ownership of it the same way vanilla "Take all" does. Don't run it alongside other "craft from containers" mods.
+
+Machine-readable versions live in [`plugin.json`](plugin.json).
+
+## Building
+
+Requires the .NET SDK (8+) and a Valheim install with BepInEx.
+
+```
+dotnet build -c Release -p:GameDir="C:\Path\To\Valheim"
+```
+
+The build copies the DLL into `<GameDir>/BepInEx/plugins/NearbyChests` for testing, and into `dist/` (committed, and what the installer downloads).
+
+## Releasing an update
+
+`release\Release.bat -Changes "what changed"` bumps the version, builds, commits, pushes and publishes a GitHub release.

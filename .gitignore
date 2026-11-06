@@ -1,0 +1,22 @@
+# Build output (dist/ is intentionally NOT ignored - the installer downloads dist/*.dll)
+bin/
+obj/
+*.pdb
+!dist/
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+Thumbs.db
+.DS_Store
+
+# NuGet
+packages/
+*.nupkg
+
+# Release build output
+release/out/

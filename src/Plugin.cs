@@ -1,0 +1,73 @@
+using BepInEx;
+using BepInEx.Configuration;
+using HarmonyLib;
+using UnityEngine;
+
+namespace NearbyChests
+{
+    // Client-only. While the inventory is open with no chest open, a "Nearby chests" panel fills the empty
+    // container slot under your inventory and lists everything in the chests around you. Click an item to take
+    // it; click an ingredient in the crafting panel (or "Take recipe") to take what the selected recipe still needs.
+    //
+    // Taking from a chest uses the same ownership hand-off vanilla "Take all" uses (ZNetView.ClaimOwnership, then
+    // edit the inventory, which saves to the ZDO). Chests another player has open, private chests that aren't
+    // yours, and chests inside a ward you can't access are skipped.
+    [BepInPlugin(Guid, Name, Version)]
+    [BepInProcess("valheim.exe")]
+    public class Plugin : BaseUnityPlugin
+    {
+        public const string Guid = "jordan.valheim.nearbychests";
+        public const string Name = "Nearby Chests";
+        public const string Version = "0.1.0";
+
+        internal static Plugin Instance;
+        internal static ConfigEntry<bool> Enabled;
+        internal static ConfigEntry<float> Range;
+        internal static ConfigEntry<bool> ShowPanel;
+        internal static ConfigEntry<KeyboardShortcut> ToggleKey;
+        internal static ConfigEntry<bool> IncludeTombstones;
+        internal static ConfigEntry<bool> IncludeCartsAndShips;
+        internal static ConfigEntry<bool> RequirementHints;
+        internal static ConfigEntry<float> RefreshInterval;
+
+        private Harmony _harmony;
+
+        private void Awake()
+        {
+            Instance = this;
+
+            Enabled = Config.Bind("General", "Enabled", true, "Turn the whole plugin on or off.");
+            Range = Config.Bind("General", "Range", 30f,
+                new ConfigDescription("Chests within this many metres of you are included.",
+                    new AcceptableValueRange<float>(1f, 100f)));
+            IncludeTombstones = Config.Bind("General", "IncludeTombstones", false,
+                "Include tombstones (your own and other players') in the nearby pool.");
+            IncludeCartsAndShips = Config.Bind("General", "IncludeCartsAndShips", true,
+                "Include carts and ship storage in the nearby pool.");
+
+            ShowPanel = Config.Bind("Panel", "ShowPanel", true,
+                "Show the Nearby chests panel under your inventory when no chest is open. Toggled with ToggleKey.");
+            ToggleKey = Config.Bind("Panel", "ToggleKey", new KeyboardShortcut(KeyCode.None),
+                "Key that shows/hides the Nearby chests panel while the inventory is open (None = no hotkey).");
+            RefreshInterval = Config.Bind("Panel", "RefreshInterval", 0.5f,
+                new ConfigDescription("Seconds between rescans of nearby chests while the inventory is open.",
+                    new AcceptableValueRange<float>(0.1f, 5f)));
+
+            RequirementHints = Config.Bind("Crafting", "RequirementHints", true,
+                "In the crafting panel, show yellow ingredient amounts when nearby chests can cover what you're missing, " +
+                "and add the nearby count to the ingredient tooltip.");
+
+            _harmony = new Harmony(Guid);
+            _harmony.PatchAll(typeof(Plugin).Assembly);
+        }
+
+        private void OnDestroy()
+        {
+            _harmony?.UnpatchSelf();
+            NearbyPanel.Destroy();
+        }
+
+        internal static void Log(string msg) => Instance?.Logger.LogInfo(msg);
+        internal static void Warn(string msg) => Instance?.Logger.LogWarning(msg);
+    }
+}
