@@ -33,6 +33,47 @@ namespace NearbyChests
             catch (System.Exception e) { Plugin.Warn("Nearby chests update failed: " + e); }
         }
 
+        // With no chest open, vanilla cancels any drag that didn't start in the player's inventory every frame.
+        // Let drags from the Nearby grid survive; otherwise behave exactly like vanilla's no-container branch.
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.UpdateContainer))]
+        private static bool UpdateContainer(InventoryGui __instance)
+        {
+            if (NearbyPanel.View == null || __instance.m_dragInventory != NearbyPanel.View) return true;
+            if (__instance.m_currentContainer != null && __instance.m_currentContainer.IsOwner()) return true;
+            if (InventoryGui.IsVisible()) __instance.m_container.gameObject.SetActive(false);
+            return false;
+        }
+
+        // ---- Nearby tab next to Craft / Upgrade ----
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnTabCraftPressed))]
+        private static void OnTabCraftPressed() => NearbyPanel.DeactivateTab();
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnTabUpgradePressed))]
+        private static void OnTabUpgradePressed() => NearbyPanel.DeactivateTab();
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.UpdateCraftingPanel))]
+        private static void UpdateCraftingPanelPrefix() => NearbyPanel.BeforeCraftingPanelUpdate();
+
+        [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.UpdateCraftingPanel))]
+        private static void UpdateCraftingPanelPostfix() => NearbyPanel.AfterCraftingPanelUpdate();
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.InCraftTab))]
+        private static bool InCraftTab(ref bool __result)
+        {
+            if (!NearbyPanel.TabActive) return true;
+            __result = NearbyPanel.SavedInCraftTab;
+            return false;
+        }
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.InUpradeTab))]
+        private static bool InUpradeTab(ref bool __result)
+        {
+            if (!NearbyPanel.TabActive) return true;
+            __result = NearbyPanel.SavedInUpgradeTab;
+            return false;
+        }
+
         // Ctrl-click: from the Nearby grid takes the stack into your inventory; from your inventory (while the
         // Nearby panel is showing) stores it in the nearby chests. Vanilla would drop it on the ground here.
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnSelectedItem))]

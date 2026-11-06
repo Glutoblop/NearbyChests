@@ -27,6 +27,14 @@ namespace NearbyChests
         public static Inventory View { get; private set; }
         private static TMP_Text _title;
         private static Button _takeRecipe;
+        private static TMP_Text _takeRecipeLabel;
+        private static string _takeRecipeText;
+        private static Button _tab;
+        private static RectTransform _panelRt;
+        private static float _origOffsetMaxY;
+        private static float _tabSpacing;
+        private static bool _tabActive;
+        private static bool _savedCraftInteractable, _savedUpgradeInteractable;
         private static TMP_InputField _search;
         private static string _query = string.Empty;
         private static int _shownSignature;
@@ -39,6 +47,7 @@ namespace NearbyChests
         public static bool BlockGameInput => Time.frameCount <= _blockInputUntilFrame;
 
         public static bool IsShown => _root != null && _root.activeSelf;
+        public static bool TabActive => _tabActive;
 
         public static void Build(InventoryGui gui)
         {
@@ -50,6 +59,8 @@ namespace NearbyChests
             _root.name = "NearbyChests_Panel";
             _root.SetActive(false);
             _root.transform.SetSiblingIndex(src.GetSiblingIndex() + 1);
+            _panelRt = (RectTransform)_root.transform;
+            _origOffsetMaxY = _panelRt.offsetMax.y;
 
             // Same handlers as the vanilla container grid.
             Grid = _root.GetComponentInChildren<InventoryGrid>(true);
@@ -74,7 +85,7 @@ namespace NearbyChests
             {
                 _takeRecipe.onClick = new Button.ButtonClickedEvent();
                 _takeRecipe.onClick.AddListener(RecipeTaker.TakeSelectedRecipe);
-                SetLabel(_takeRecipe, "Take recipe");
+                _takeRecipeLabel = SetLabel(_takeRecipe, "Take recipe");
             }
 
             var stackAll = Find<Button>(src, gui.m_stackAllButton.transform);
@@ -84,11 +95,126 @@ namespace NearbyChests
             _search = CreateSearch((RectTransform)_root.transform, font);
 
             View = new Inventory("Nearby", null, Columns, MinRows);
+            BuildTab(gui);
+        }
+
+        /// <summary>A third tab next to Craft / Upgrade, cloned from the Upgrade tab.</summary>
+        private static void BuildTab(InventoryGui gui)
+        {
+            var src = gui.m_tabUpgrade;
+            var go = Object.Instantiate(src.gameObject, src.transform.parent, false);
+            go.name = "NearbyChests_Tab";
+            _tab = go.GetComponent<Button>();
+            _tab.onClick = new Button.ButtonClickedEvent(); // drop the cloned persistent OnTabUpgradePressed listener
+            _tab.onClick.AddListener(ActivateTab);
+            _tab.interactable = true;
+            SetLabel(_tab, "Nearby");
+            go.SetActive(false);
+        }
+
+        public static void ActivateTab()
+        {
+            if (_gui == null || _tabActive) return;
+            _savedCraftInteractable = _gui.m_tabCraft.interactable;
+            _savedUpgradeInteractable = _gui.m_tabUpgrade.interactable;
+            _tabActive = true;
+            ShowTabsUnselected();
+            _resetView = true;
+            ForceRescan();
+        }
+
+        /// <summary>Leave the Nearby tab, putting Craft / Upgrade back the way they were.</summary>
+        public static void DeactivateTab()
+        {
+            if (!_tabActive) return;
+            _tabActive = false;
+            if (_gui != null)
+            {
+                _gui.m_tabCraft.interactable = _savedCraftInteractable;
+                _gui.m_tabUpgrade.interactable = _savedUpgradeInteractable;
+            }
+            if (_tab != null) _tab.interactable = true;
+        }
+
+        // Vanilla marks the selected tab by making it non-interactable. While Nearby is selected, the game still
+        // thinks Craft/Upgrade is (InCraftTab/InUpradeTab are patched to answer from the saved state), so the
+        // selected recipe and its requirements keep updating underneath.
+        public static bool SavedInCraftTab => !_savedCraftInteractable && _gui.m_tabCraft.gameObject.activeSelf;
+        public static bool SavedInUpgradeTab => !_savedUpgradeInteractable && _gui.m_tabUpgrade.gameObject.activeSelf;
+
+        /// <summary>UpdateCraftingPanel prefix: give vanilla its real tab state back for the duration of the call.</summary>
+        public static void BeforeCraftingPanelUpdate()
+        {
+            if (!_tabActive || _gui == null) return;
+            _gui.m_tabCraft.interactable = _savedCraftInteractable;
+            _gui.m_tabUpgrade.interactable = _savedUpgradeInteractable;
+        }
+
+        /// <summary>UpdateCraftingPanel postfix: remember what vanilla chose, then show Nearby as the selected tab again.</summary>
+        public static void AfterCraftingPanelUpdate()
+        {
+            if (!_tabActive || _gui == null) return;
+            _savedCraftInteractable = _gui.m_tabCraft.interactable;
+            _savedUpgradeInteractable = _gui.m_tabUpgrade.interactable;
+            ShowTabsUnselected();
+        }
+
+        private static void ShowTabsUnselected()
+        {
+            _gui.m_tabCraft.interactable = true;
+            _gui.m_tabUpgrade.interactable = true;
+            if (_tab != null) _tab.interactable = false;
+        }
+
+        /// <summary>Put the Nearby tab just right of the rightmost visible vanilla tab.</summary>
+        private static void PlaceTab()
+        {
+            var craft = (RectTransform)_gui.m_tabCraft.transform;
+            var upgrade = (RectTransform)_gui.m_tabUpgrade.transform;
+            var tab = (RectTransform)_tab.transform;
+            if (craft.gameObject.activeSelf && upgrade.gameObject.activeSelf)
+                _tabSpacing = upgrade.anchoredPosition.x - craft.anchoredPosition.x;
+            var last = upgrade.gameObject.activeSelf ? upgrade : craft;
+            float step = Mathf.Abs(_tabSpacing) > 1f ? _tabSpacing : last.rect.width + 4f;
+            var pos = last.anchoredPosition + new Vector2(step, 0f);
+            if ((tab.anchoredPosition - pos).sqrMagnitude > 0.25f) tab.anchoredPosition = pos;
+        }
+
+        /// <summary>
+        /// The panel sits where the crafting panel is; make sure it stops below the tab strip so the
+        /// Craft / Upgrade / Nearby tabs stay clickable.
+        /// </summary>
+        private static void KeepTabsClear()
+        {
+            var panel = new Vector3[4];
+            _panelRt.GetWorldCorners(panel);
+            float scale = _panelRt.lossyScale.y;
+            if (scale <= 0f) return;
+            float origTop = panel[1].y + (_origOffsetMaxY - _panelRt.offsetMax.y) * scale;
+            float bottom = panel[0].y;
+
+            float tabsBottom = float.MaxValue;
+            var c = new Vector3[4];
+            foreach (var b in new[] { _gui.m_tabCraft, _gui.m_tabUpgrade, _tab })
+            {
+                if (b == null || !b.gameObject.activeInHierarchy) continue;
+                ((RectTransform)b.transform).GetWorldCorners(c);
+                bool overlapsX = c[2].x > panel[0].x && c[0].x < panel[2].x;
+                if (overlapsX && c[1].y > bottom) tabsBottom = Mathf.Min(tabsBottom, c[0].y);
+            }
+
+            float desiredTop = origTop;
+            if (tabsBottom < origTop && tabsBottom > bottom + 50f * scale) desiredTop = tabsBottom - 2f * scale;
+            float newOffset = _origOffsetMaxY - (origTop - desiredTop) / scale;
+            if (Mathf.Abs(newOffset - _panelRt.offsetMax.y) > 0.5f)
+                _panelRt.offsetMax = new Vector2(_panelRt.offsetMax.x, newOffset);
         }
 
         public static void Destroy()
         {
             if (_root != null) Object.Destroy(_root);
+            if (_tab != null) Object.Destroy(_tab.gameObject);
+            _tab = null; _tabActive = false; _takeRecipeLabel = null;
             _root = null; Grid = null; _title = null; _takeRecipe = null; _search = null; _gui = null;
             _byViewItem.Clear();
         }
@@ -103,18 +229,25 @@ namespace NearbyChests
             bool visible = InventoryGui.IsVisible() && player != null && Plugin.Enabled.Value;
             if (!visible)
             {
-                if (_root.activeSelf) OnHidden();
+                if (_tab.gameObject.activeSelf) _tab.gameObject.SetActive(false);
+                if (_root.activeSelf || _tabActive) OnHidden();
                 _nextScan = 0f;
                 return;
             }
 
+            bool tabVisible = !_gui.IsContainerOpen();
+            if (_tab.gameObject.activeSelf != tabVisible) _tab.gameObject.SetActive(tabVisible);
+            if (tabVisible) PlaceTab();
+
             if (Plugin.ToggleKey.Value.MainKey != KeyCode.None && !BlockGameInput && Plugin.ToggleKey.Value.IsDown())
-                Plugin.ShowPanel.Value = !Plugin.ShowPanel.Value;
+            {
+                if (_tabActive) _gui.OnTabCraftPressed(); else ActivateTab();
+            }
 
             // Keep scanning even with the panel hidden: the crafting panel's hints and click-to-take use the counts.
             if (Time.time >= _nextScan) Rescan();
 
-            bool show = Plugin.ShowPanel.Value && !_gui.IsContainerOpen();
+            bool show = _tabActive && !_gui.IsContainerOpen();
             if (_root.activeSelf != show)
             {
                 _root.SetActive(show);
@@ -122,14 +255,24 @@ namespace NearbyChests
             }
             if (!show) return;
 
+            KeepTabsClear();
             Grid.UpdateInventory(View, null, _gui.m_dragItem);
             if (_resetView) { Grid.ResetView(); _resetView = false; }
-            if (_takeRecipe != null) _takeRecipe.interactable = RecipeTaker.HasSelectedRecipe();
+            if (_takeRecipe != null)
+            {
+                bool has = RecipeTaker.HasSelectedRecipe();
+                _takeRecipe.interactable = has;
+                string label = has
+                    ? "Take: " + Localization.instance.Localize(_gui.m_selectedRecipe.Recipe.m_item.m_itemData.m_shared.m_name)
+                    : "Take recipe";
+                if (_takeRecipeLabel != null && label != _takeRecipeText) { _takeRecipeLabel.text = label; _takeRecipeText = label; }
+            }
         }
 
         private static void OnHidden()
         {
             _root.SetActive(false);
+            DeactivateTab();
             if (Plugin.ClearSearchOnClose.Value && _search != null)
             {
                 _search.SetTextWithoutNotify(string.Empty);
@@ -365,12 +508,13 @@ namespace NearbyChests
             return null;
         }
 
-        private static void SetLabel(Button b, string text)
+        private static TMP_Text SetLabel(Button b, string text)
         {
             var label = b.GetComponentInChildren<TMP_Text>(true);
-            if (label == null) return;
+            if (label == null) return null;
             StripLocalize(label.gameObject);
             label.text = text;
+            return label;
         }
 
         // Vanilla's Localize component would overwrite our text with the original "$..." key when it wakes up.

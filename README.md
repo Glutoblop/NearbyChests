@@ -9,7 +9,7 @@ Open your inventory and see everything stored in the chests around you, in one p
 Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for finding the recipe first.
 
 ## Features
-- **Nearby chests panel**: when the inventory is open and no chest is, the empty container area under your inventory shows the combined contents of every chest within 30 m, as normal stacks. It scrolls when there's more than fits.
+- **Nearby tab**: a third tab next to Craft / Upgrade. It shows the combined contents of every chest within 30 m, as normal stacks. It scrolls when there's more than fits.
 - **Works like a chest**: drag a stack into your inventory, Shift-click to split, Ctrl-click to move the whole stack to your inventory. Items come out of the real chests, nearest first.
 - **Store too**: drag an item from your inventory onto the panel, or Ctrl-click it in your inventory, to put it in the nearby chests (chests that already hold that item first).
 - **Search**: a search box at the top of the panel filters it with forgiving fuzzy matching, same as Recipe Search.
@@ -26,8 +26,7 @@ Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for f
 | General | Range | 30 | Chests within this many metres are included. |
 | General | IncludeTombstones | false | Include tombstones in the pool. |
 | General | IncludeCartsAndShips | true | Include cart and ship storage. |
-| Panel | ShowPanel | true | Show the Nearby chests panel (toggled by ToggleKey). |
-| Panel | ToggleKey | None | Hotkey to show/hide the panel while the inventory is open. |
+| Panel | ToggleKey | None | Hotkey to switch between the Nearby and Craft tabs. |
 | Panel | RefreshInterval | 0.5 | Seconds between rescans while the inventory is open. |
 | Panel | ClearSearchOnClose | true | Clear the search box when the inventory closes. |
 | Panel | SearchOffsetX / SearchOffsetY | -12 / -8 | Search box position from the panel's top-right corner. |

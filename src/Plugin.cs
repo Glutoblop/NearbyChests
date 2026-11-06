@@ -23,7 +23,6 @@ namespace NearbyChests
         internal static Plugin Instance;
         internal static ConfigEntry<bool> Enabled;
         internal static ConfigEntry<float> Range;
-        internal static ConfigEntry<bool> ShowPanel;
         internal static ConfigEntry<KeyboardShortcut> ToggleKey;
         internal static ConfigEntry<bool> IncludeTombstones;
         internal static ConfigEntry<bool> IncludeCartsAndShips;
@@ -48,10 +47,8 @@ namespace NearbyChests
             IncludeCartsAndShips = Config.Bind("General", "IncludeCartsAndShips", true,
                 "Include carts and ship storage in the nearby pool.");
 
-            ShowPanel = Config.Bind("Panel", "ShowPanel", true,
-                "Show the Nearby chests panel under your inventory when no chest is open. Toggled with ToggleKey.");
             ToggleKey = Config.Bind("Panel", "ToggleKey", new KeyboardShortcut(KeyCode.None),
-                "Key that shows/hides the Nearby chests panel while the inventory is open (None = no hotkey).");
+                "Key that switches between the Nearby tab and the Craft tab while the inventory is open (None = no hotkey).");
             RefreshInterval = Config.Bind("Panel", "RefreshInterval", 0.5f,
                 new ConfigDescription("Seconds between rescans of nearby chests while the inventory is open.",
                     new AcceptableValueRange<float>(0.1f, 5f)));
