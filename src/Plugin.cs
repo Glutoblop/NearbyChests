@@ -34,6 +34,7 @@ namespace NearbyChests
         internal static ConfigEntry<float> PanelOffsetX;
         internal static ConfigEntry<float> PanelOffsetY;
         internal static ConfigEntry<bool> ClickIngredientToTake;
+        internal static ConfigEntry<bool> IncludeBuildPieces;
 
         private Harmony _harmony;
 
@@ -73,6 +74,8 @@ namespace NearbyChests
                 "and add the nearby count to the ingredient tooltip.");
             ClickIngredientToTake = Config.Bind("Crafting", "ClickIngredientToTake", false,
                 "Clicking an ingredient in the crafting panel takes the missing amount from nearby chests automatically.");
+            IncludeBuildPieces = Config.Bind("Crafting", "IncludeBuildPieces", true,
+                "List the build pieces you've unlocked (Hammer, Hoe, Cultivator...) in the Nearby tab alongside crafting recipes.");
 
             _harmony = new Harmony(Guid);
             _harmony.PatchAll(typeof(Plugin).Assembly);

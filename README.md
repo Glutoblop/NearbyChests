@@ -12,6 +12,7 @@ Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for f
 Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everything at once:
 
 - **Every recipe you know**: the crafting list switches to every recipe your character has unlocked, whichever station you're at (or none), with each recipe's ingredients. Recipe Search's search box works on it as usual.
+  - Build pieces you've unlocked (Hammer, Hoe, Cultivator: Raft, walls, workbench extensions...) are listed too, tagged with their tool. They show their ingredients and work with Filter chests; you still place them with the tool as usual.
   - Recipes your inventory plus the nearby chests can cover are listed bright (gold name) instead of greyed out; ones you can craft right now stay white.
 - **Everything in nearby chests**: a panel under your inventory shows the combined contents of every chest within 30 m, as normal stacks, with its own search box. It scrolls when there's more than fits.
 - **Filter by recipe**: in the Nearby tab the Craft button becomes **Filter chests**. Select a recipe, press it, and the chests panel shows only that recipe's ingredients. Press it again (or **Clear filter**) to see everything.
@@ -36,6 +37,7 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
 | Panel | PanelOffsetX / PanelOffsetY | 0 / 0 | Nudge the chests panel from its spot under your inventory. |
 | Crafting | RequirementHints | true | Yellow amounts + nearby counts on crafting ingredients. |
 | Crafting | ClickIngredientToTake | false | Clicking a crafting ingredient takes the missing amount from chests automatically. |
+| Crafting | IncludeBuildPieces | true | List unlocked build pieces in the Nearby tab too. |
 
 ## Install
 

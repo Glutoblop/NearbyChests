@@ -11,6 +11,20 @@ namespace NearbyChests
             => NearbyTabs.OverrideAvailableRecipes(__instance, available);
     }
 
+    // Description text for build-piece stand-ins in the crafting panel.
+    [HarmonyPatch(typeof(ItemDrop.ItemData), nameof(ItemDrop.ItemData.GetTooltip),
+        new[] { typeof(ItemDrop.ItemData), typeof(int), typeof(bool), typeof(float), typeof(int), typeof(bool) })]
+    internal static class BuildPieceTooltipPatch
+    {
+        private static bool Prefix(ItemDrop.ItemData item, ref string __result)
+        {
+            var text = BuildPieces.Tooltip(item);
+            if (text == null) return true;
+            __result = text;
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(Container), nameof(Container.Awake))]
     internal static class ContainerAwakePatch
     {
@@ -71,9 +85,22 @@ namespace NearbyChests
             => __state = NearbyTabs.PromoteCanCraft(player, recipe, item, ref canCraft);
 
         [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.AddRecipeToList))]
-        private static void AddRecipeToListPostfix(InventoryGui __instance, bool __state)
+        private static void AddRecipeToListPostfix(InventoryGui __instance, Recipe recipe, bool __state)
         {
             if (__state) NearbyTabs.TintPromoted(__instance);
+            NearbyTabs.TagBuildPiece(__instance, recipe);
+        }
+
+        // Build pieces are listed as stand-in recipes; they can't be crafted, only placed with their tool.
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnCraftPressed))]
+        private static bool OnCraftPressed(InventoryGui __instance) => !BuildPieces.IsBuildPiece(__instance.m_selectedRecipe.Recipe);
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.DoCrafting))]
+        private static bool DoCrafting(InventoryGui __instance)
+        {
+            if (!BuildPieces.IsBuildPiece(__instance.m_craftRecipe)) return true;
+            __instance.m_craftRecipe = null;
+            return false;
         }
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.InCraftTab))]

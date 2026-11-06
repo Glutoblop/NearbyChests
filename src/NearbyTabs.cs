@@ -145,6 +145,16 @@ namespace NearbyChests
                 (all || player.IsRecipeKnown(r.m_item.m_itemData.m_shared.m_name)));
             foreach (var r in known)
                 if (!available.Contains(r)) available.Add(r);
+            if (Plugin.IncludeBuildPieces.Value) BuildPieces.AddKnown(player, available);
+        }
+
+        /// <summary>AddRecipeToList postfix: label build pieces with the tool that builds them.</summary>
+        public static void TagBuildPiece(InventoryGui gui, Recipe recipe)
+        {
+            if (!BuildPieces.TryGet(recipe, out string tool) || gui.m_availableRecipes.Count == 0) return;
+            var el = gui.m_availableRecipes[gui.m_availableRecipes.Count - 1].InterfaceElement;
+            var name = el != null ? el.transform.Find("name")?.GetComponent<TMPro.TMP_Text>() : null;
+            if (name != null) name.text += " <size=75%><color=#9fd8ff>[" + Localization.instance.Localize(tool) + "]</color></size>";
         }
 
         private static readonly Color NearbyNameColor = new Color(1f, 0.85f, 0.4f, 1f);
