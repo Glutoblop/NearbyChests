@@ -79,8 +79,8 @@ namespace NearbyChests
             _savedUpgradeInteractable = _gui.m_tabUpgrade.interactable;
             Active = true;
             ShowTabStates();
+            NearbyPanel.OnTabShown();                  // scan chests first: the list's highlighting uses the counts
             _gui.UpdateCraftingPanel(focusView: true); // rebuild the list with every known recipe
-            NearbyPanel.OnTabShown();
         }
 
         /// <summary>Back to Craft / Upgrade (vanilla tab pressed, or inventory closed).</summary>
@@ -142,6 +142,47 @@ namespace NearbyChests
                 (all || player.IsRecipeKnown(r.m_item.m_itemData.m_shared.m_name)));
             foreach (var r in known)
                 if (!available.Contains(r)) available.Add(r);
+        }
+
+        private static readonly Color NearbyNameColor = new Color(1f, 0.85f, 0.4f, 1f);
+
+        /// <summary>
+        /// AddRecipeToList prefix: in the Nearby tab a recipe counts as makeable when your inventory plus the nearby
+        /// chests hold its ingredients (station not required), so it's listed bright instead of greyed out.
+        /// Returns true when we changed it, so the postfix can tint it.
+        /// </summary>
+        public static bool PromoteCanCraft(Player player, Recipe recipe, ItemDrop.ItemData item, ref bool canCraft)
+        {
+            if (!Active || canCraft || item != null || player == null || recipe == null) return false;
+            if (!MaterialsAvailable(player, recipe)) return false;
+            canCraft = true;
+            return true;
+        }
+
+        /// <summary>AddRecipeToList postfix: tint recipes that need chest items (or a station) so they stand out from "craft now".</summary>
+        public static void TintPromoted(InventoryGui gui)
+        {
+            if (gui.m_availableRecipes.Count == 0) return;
+            var el = gui.m_availableRecipes[gui.m_availableRecipes.Count - 1].InterfaceElement;
+            var name = el != null ? el.transform.Find("name")?.GetComponent<TMPro.TMP_Text>() : null;
+            if (name != null) name.color = NearbyNameColor;
+        }
+
+        private static bool MaterialsAvailable(Player player, Recipe recipe)
+        {
+            var inv = player.GetInventory();
+            bool any = false, all = true;
+            foreach (var req in recipe.m_resources)
+            {
+                if (req?.m_resItem == null || req.m_upgraderResource) continue;
+                int need = req.GetAmount(1);
+                if (need <= 0) continue;
+                string name = req.m_resItem.m_itemData.m_shared.m_name;
+                bool ok = inv.CountItems(name) + ChestPool.CountForCrafting(name) >= need;
+                any |= ok;
+                all &= ok;
+            }
+            return recipe.m_requireOnlyOneIngredient ? any : all;
         }
 
         /// <summary>Every frame.</summary>

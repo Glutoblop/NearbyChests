@@ -66,6 +66,16 @@ namespace NearbyChests
         [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.UpdateCraftingPanel))]
         private static void UpdateCraftingPanelPostfix() => NearbyTabs.AfterCraftingPanelUpdate();
 
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.AddRecipeToList))]
+        private static void AddRecipeToListPrefix(Player player, Recipe recipe, ItemDrop.ItemData item, ref bool canCraft, out bool __state)
+            => __state = NearbyTabs.PromoteCanCraft(player, recipe, item, ref canCraft);
+
+        [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.AddRecipeToList))]
+        private static void AddRecipeToListPostfix(InventoryGui __instance, bool __state)
+        {
+            if (__state) NearbyTabs.TintPromoted(__instance);
+        }
+
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.InCraftTab))]
         private static bool InCraftTab(ref bool __result)
         {

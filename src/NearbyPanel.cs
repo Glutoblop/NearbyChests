@@ -213,6 +213,27 @@ namespace NearbyChests
                 _shownSignature = sig;
                 RebuildView();
             }
+
+            // In the Nearby tab the recipe list's "can make it" state depends on chests + inventory: refresh it when either changes.
+            if (NearbyTabs.Active && _gui != null && Player.m_localPlayer != null)
+            {
+                int craftSig = ChestPool.Signature * 31 + InventorySignature(Player.m_localPlayer.GetInventory());
+                if (craftSig != _craftSignature)
+                {
+                    _craftSignature = craftSig;
+                    _gui.UpdateCraftingPanel();
+                }
+            }
+        }
+
+        private static int _craftSignature;
+
+        private static int InventorySignature(Inventory inv)
+        {
+            int sig = 17;
+            foreach (var it in inv.GetAllItems())
+                sig = sig * 31 + it.m_shared.m_name.GetHashCode() * 7 + it.m_stack;
+            return sig;
         }
 
         private static void RebuildView()

@@ -17,6 +17,7 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
   - Click a recipe's ingredient to take just what you're missing, or press **Take missing from chests** (above the Craft button) to take everything the recipe is short of.
   - Or do it by hand: drag stacks from the chests panel into your inventory, Shift-click to split, Ctrl-click to move a whole stack. Items come out of the real chests, nearest first.
 - **Store too**: drag an item from your inventory onto the chests panel, or Ctrl-click it in your inventory, to put it in the nearby chests (chests that already hold that item first).
+- **Makeable recipes stand out**: in the Nearby tab, recipes whose ingredients your inventory plus nearby chests can cover are listed bright (gold name) instead of greyed out; recipes you can craft right now stay white.
 - **Hints**: an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count. Also works in the normal Craft tab.
 - You still need the right crafting station to actually craft.
 - Skips chests another player has open, private chests that aren't yours, and chests inside wards you can't access. Tombstones are excluded by default.
