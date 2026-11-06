@@ -9,15 +9,15 @@ Open your inventory and see everything stored in the chests around you, in one p
 Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for finding the recipe first.
 
 ## Features
-- **Nearby tab**: a third tab next to Craft / Upgrade. It shows the combined contents of every chest within 30 m, as normal stacks. It scrolls when there's more than fits.
-- **Works like a chest**: drag a stack into your inventory, Shift-click to split, Ctrl-click to move the whole stack to your inventory. Items come out of the real chests, nearest first.
-- **Store too**: drag an item from your inventory onto the panel, or Ctrl-click it in your inventory, to put it in the nearby chests (chests that already hold that item first).
-- **Search**: a search box at the top of the panel filters it with forgiving fuzzy matching, same as Recipe Search.
-- **Recipe browser**: the **Recipes** button on the Nearby tab lists every recipe your character has unlocked, from any crafting station, with search by name or ingredient. Pick one to see what you carry and what the chests hold for each ingredient; click an ingredient to take what is missing, or **Take all missing**.
-- **At a crafting station**: select a recipe, then
-  - click an ingredient in the crafting panel to take just the amount you're missing, or
-  - press **Take recipe** on the Nearby panel to take everything the recipe is short of (respects the x5 multi-craft amount and upgrade quality).
-- **Crafting hints**: an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count.
+Adds two tabs next to **Craft** / **Upgrade** in the inventory:
+
+- **Chests**: the combined contents of every chest within 30 m, as normal stacks, with a search box. Scrolls when there's more than fits.
+  - Works like a chest: drag a stack into your inventory, Shift-click to split, Ctrl-click to move the whole stack. Items come out of the real chests, nearest first.
+  - Store too: drag an item from your inventory onto the panel, or Ctrl-click it in your inventory, to put it in the nearby chests (chests that already hold that item first).
+- **All recipes**: the normal crafting list, but showing every recipe your character has unlocked, whichever station you're at (or none). Recipe Search's search box works here as usual.
+  - Click an ingredient to take just what you're missing from nearby chests, or press **Take missing from chests** (above the Craft button) for the whole recipe.
+  - You still need the right crafting station to actually craft.
+- **Crafting hints** (Craft and All recipes tabs): an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count.
 - Skips chests another player has open, private chests that aren't yours, and chests inside wards you can't access. Tombstones are excluded by default.
 
 ## Configuration (`BepInEx/config/jordan.valheim.nearbychests.cfg`)
@@ -27,7 +27,7 @@ Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for f
 | General | Range | 30 | Chests within this many metres are included. |
 | General | IncludeTombstones | false | Include tombstones in the pool. |
 | General | IncludeCartsAndShips | true | Include cart and ship storage. |
-| Panel | ToggleKey | None | Hotkey to switch between the Nearby and Craft tabs. |
+| Panel | ToggleKey | None | Hotkey cycling Chests, All recipes, Craft. |
 | Panel | RefreshInterval | 0.5 | Seconds between rescans while the inventory is open. |
 | Panel | ClearSearchOnClose | true | Clear the search box when the inventory closes. |
 | Panel | SearchOffsetX / SearchOffsetY | -12 / -8 | Search box position from the panel's top-right corner. |

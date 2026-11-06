@@ -3,6 +3,14 @@ using UnityEngine;
 
 namespace NearbyChests
 {
+    // All recipes tab: every unlocked recipe, not just the ones for the current station.
+    [HarmonyPatch(typeof(Player), nameof(Player.GetAvailableRecipes))]
+    internal static class GetAvailableRecipesPatch
+    {
+        private static void Postfix(Player __instance, ref System.Collections.Generic.List<Recipe> available)
+            => NearbyTabs.OverrideAvailableRecipes(__instance, available);
+    }
+
     [HarmonyPatch(typeof(Container), nameof(Container.Awake))]
     internal static class ContainerAwakePatch
     {
@@ -44,33 +52,35 @@ namespace NearbyChests
             return false;
         }
 
-        // ---- Nearby tab next to Craft / Upgrade ----
+        // ---- Chests / All recipes tabs next to Craft / Upgrade ----
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnTabCraftPressed))]
-        private static void OnTabCraftPressed() => NearbyPanel.DeactivateTab();
+        private static void OnTabCraftPressed() => NearbyTabs.Deactivate();
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnTabUpgradePressed))]
-        private static void OnTabUpgradePressed() => NearbyPanel.DeactivateTab();
+        private static void OnTabUpgradePressed() => NearbyTabs.Deactivate();
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.UpdateCraftingPanel))]
-        private static void UpdateCraftingPanelPrefix() => NearbyPanel.BeforeCraftingPanelUpdate();
+        private static void UpdateCraftingPanelPrefix() => NearbyTabs.BeforeCraftingPanelUpdate();
 
         [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.UpdateCraftingPanel))]
-        private static void UpdateCraftingPanelPostfix() => NearbyPanel.AfterCraftingPanelUpdate();
+        private static void UpdateCraftingPanelPostfix() => NearbyTabs.AfterCraftingPanelUpdate();
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.InCraftTab))]
         private static bool InCraftTab(ref bool __result)
         {
-            if (!NearbyPanel.TabActive) return true;
-            __result = NearbyPanel.SavedInCraftTab;
+            var o = NearbyTabs.InCraftTabOverride;
+            if (o == null) return true;
+            __result = o.Value;
             return false;
         }
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.InUpradeTab))]
         private static bool InUpradeTab(ref bool __result)
         {
-            if (!NearbyPanel.TabActive) return true;
-            __result = NearbyPanel.SavedInUpgradeTab;
+            var o = NearbyTabs.InUpgradeTabOverride;
+            if (o == null) return true;
+            __result = o.Value;
             return false;
         }
 
