@@ -65,9 +65,9 @@ namespace NearbyChests
                 "Vertical position of the search box, from the panel's top-right corner (negative = down).");
 
             PanelOffsetX = Config.Bind("Panel", "PanelOffsetX", 0f,
-                "Nudge the Nearby chests panel horizontally from its spot under your inventory (pixels, + = right).");
+                "Nudge the Nearby chests panel horizontally from its spot left of the crafting panel (pixels, + = right).");
             PanelOffsetY = Config.Bind("Panel", "PanelOffsetY", 0f,
-                "Nudge the Nearby chests panel vertically from its spot under your inventory (pixels, + = up).");
+                "Nudge the Nearby chests panel vertically from its spot left of the crafting panel (pixels, + = up).");
 
             RequirementHints = Config.Bind("Crafting", "RequirementHints", true,
                 "In the crafting panel, show yellow ingredient amounts when nearby chests can cover what you're missing, " +

@@ -14,7 +14,7 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
 - **Every recipe you know**: the crafting list switches to every recipe your character has unlocked, whichever station you're at (or none), with each recipe's ingredients. Recipe Search's search box works on it as usual.
   - Build pieces you've unlocked (Hammer, Hoe, Cultivator: Raft, walls, workbench extensions...) are listed too, tagged with their tool. They show their ingredients and work with Filter chests; you still place them with the tool as usual.
   - Recipes your inventory plus the nearby chests can cover are listed bright (gold name) instead of greyed out; ones you can craft right now stay white.
-- **Everything in nearby chests**: a panel under your inventory shows the combined contents of every chest within 30 m, as normal stacks, with its own search box. It scrolls when there's more than fits.
+- **Everything in nearby chests**: a panel in the middle of the screen, just left of the crafting panel, shows the combined contents of every chest within 30 m, as normal stacks, with its own search box. It scrolls when there's more than fits.
 - **Filter by recipe**: in the Nearby tab the Craft button becomes **Filter chests**. Select a recipe, press it, and the chests panel shows only that recipe's ingredients. Press it again (or **Clear filter**) to see everything.
 - **Required amounts**: below the chests panel, the selected/filtered recipe's ingredients are listed as *need / have / in chests* (green = you have enough, yellow = the chests can cover it, red = not enough).
 - **You decide what to take**: drag stacks from the chests panel into your inventory, Shift-click to split, Ctrl-click to move a whole stack. Items come out of the real chests, nearest first.
@@ -34,7 +34,7 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
 | Panel | RefreshInterval | 0.5 | Seconds between rescans while the inventory is open. |
 | Panel | ClearSearchOnClose | true | Clear the search box when the inventory closes. |
 | Panel | SearchOffsetX / SearchOffsetY | -12 / -8 | Search box position from the panel's top-right corner. |
-| Panel | PanelOffsetX / PanelOffsetY | 0 / 0 | Nudge the chests panel from its spot under your inventory. |
+| Panel | PanelOffsetX / PanelOffsetY | 0 / 0 | Nudge the chests panel from its spot left of the crafting panel. |
 | Crafting | RequirementHints | true | Yellow amounts + nearby counts on crafting ingredients. |
 | Crafting | ClickIngredientToTake | false | Clicking a crafting ingredient takes the missing amount from chests automatically. |
 | Crafting | IncludeBuildPieces | true | List unlocked build pieces in the Nearby tab too. |

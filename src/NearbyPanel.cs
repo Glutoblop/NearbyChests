@@ -102,6 +102,7 @@ namespace NearbyChests
             {
                 _root.transform.SetParent(gui.m_inventoryRoot, true);
                 _root.transform.SetAsLastSibling();
+                KeepBelowDialogs(gui);
             }
 
             View = new Inventory("Nearby", null, Columns, MinRows);
@@ -151,7 +152,7 @@ namespace NearbyChests
             }
             if (!show) return;
 
-            PlaceUnderInventory();
+            PlaceLeftOfCrafting();
             LogLayoutOnce();
             Grid.UpdateInventory(View, null, _gui.m_dragItem);
             if (_resetView) { Grid.ResetView(); _resetView = false; }
@@ -286,12 +287,12 @@ namespace NearbyChests
         }
 
         /// <summary>
-        /// Keep the panel directly under the player inventory (left-aligned with it), where a chest normally opens,
+        /// Keep the panel in the middle of the screen, just left of the crafting panel and top-aligned with it,
         /// so recipes, ingredients and chest contents are all visible at once. Clamped to the screen; nudge with PanelOffsetX / PanelOffsetY.
         /// </summary>
-        private static void PlaceUnderInventory()
+        private static void PlaceLeftOfCrafting()
         {
-            var anchor = _gui.m_player;
+            var anchor = _gui.m_crafting;
             if (anchor == null) return;
             float scale = _panelRt.lossyScale.x;
             if (scale <= 0f) return;
@@ -301,9 +302,9 @@ namespace NearbyChests
             anchor.GetWorldCorners(cc);
             _panelRt.GetWorldCorners(pc);
 
-            float gap = 12f * scale;
-            float dx = cc[0].x - pc[0].x + Plugin.PanelOffsetX.Value * scale;
-            float dy = (cc[0].y - gap) - pc[1].y + Plugin.PanelOffsetY.Value * scale;
+            float gap = 6f * scale;
+            float dx = (cc[0].x - gap) - pc[2].x + Plugin.PanelOffsetX.Value * scale;
+            float dy = cc[1].y - pc[1].y + Plugin.PanelOffsetY.Value * scale;
 
             var canvas = _panelRt.GetComponentInParent<Canvas>();
             if (canvas != null)
@@ -312,12 +313,34 @@ namespace NearbyChests
                 ((RectTransform)canvas.rootCanvas.transform).GetWorldCorners(sc);
                 float overRight = pc[2].x + dx - (sc[2].x - 8f * scale);
                 if (overRight > 0f) dx -= overRight;
+                float overLeft = (sc[0].x + 8f * scale) - (pc[0].x + dx);
+                if (overLeft > 0f) dx += overLeft;
                 float underBottom = (sc[0].y + 8f * scale) - (pc[0].y + dy);
                 if (underBottom > 0f) dy += underBottom;
             }
 
             if (Mathf.Abs(dx) > 0.5f * scale || Mathf.Abs(dy) > 0.5f * scale)
                 _panelRt.anchoredPosition += new Vector2(dx, dy) / scale;
+        }
+
+        /// <summary>
+        /// Draw the panel underneath the inventory screen's pop-up dialogs (split stack, variants, skills...), so
+        /// they stay usable when they overlap it.
+        /// </summary>
+        private static void KeepBelowDialogs(InventoryGui gui)
+        {
+            var root = gui.m_inventoryRoot;
+            int lowest = int.MaxValue;
+            var dialogs = new Component[] { gui.m_splitDialog, gui.m_variantDialog, gui.m_skillsDialog, gui.m_textsDialog, gui.m_achievementsPanel };
+            var transforms = dialogs.Where(d => d != null).Select(d => d.transform).ToList();
+            if (gui.m_trophiesPanel != null) transforms.Add(gui.m_trophiesPanel.transform);
+            foreach (var t in transforms)
+            {
+                var top = t;
+                while (top != null && top.parent != root) top = top.parent;
+                if (top != null && top != _root.transform) lowest = Mathf.Min(lowest, top.GetSiblingIndex());
+            }
+            if (lowest != int.MaxValue) _root.transform.SetSiblingIndex(lowest);
         }
 
         /// <summary>True while the player is dragging (or splitting) one of our fake items.</summary>
