@@ -93,6 +93,8 @@ namespace NearbyChests
 
             var font = gui.m_tabCraft.GetComponentInChildren<TMP_Text>(true)?.font;
             _search = CreateSearch((RectTransform)_root.transform, font);
+            PanelDragHandle.Create(_panelRt, 40f, SearchWidth + 24f);
+            _search.transform.SetAsLastSibling(); // keep the search box clickable above the drag strip
 
             _reqStrip = CreateRequirementStrip(_panelRt, font);
 
@@ -303,8 +305,8 @@ namespace NearbyChests
             _panelRt.GetWorldCorners(pc);
 
             float gap = 6f * scale;
-            float dx = (cc[0].x - gap) - pc[2].x + Plugin.PanelOffsetX.Value * scale;
-            float dy = cc[1].y - pc[1].y + Plugin.PanelOffsetY.Value * scale;
+            float dx = (cc[0].x - gap) - pc[2].x + PanelDragHandle.Offset.x * scale;
+            float dy = cc[1].y - pc[1].y + PanelDragHandle.Offset.y * scale;
 
             var canvas = _panelRt.GetComponentInParent<Canvas>();
             if (canvas != null)
