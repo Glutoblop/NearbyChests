@@ -17,7 +17,7 @@ namespace NearbyChests
 
         public void OnPointerClick(PointerEventData eventData)
         {
-            if (!Plugin.Enabled.Value || Req?.m_resItem == null) return;
+            if (!Plugin.Enabled.Value || !Plugin.ClickIngredientToTake.Value || Req?.m_resItem == null) return;
             RecipeTaker.TakeMissing(Req, Need, report: true);
         }
     }
@@ -25,6 +25,8 @@ namespace NearbyChests
     internal static class RecipeTaker
     {
         private static int _quality = 1;
+        public static int Quality => _quality;
+        public static int Multiplier => _multiplier;
         private static int _multiplier = 1;
 
         public static void AttachSlots(InventoryGui gui)
@@ -65,7 +67,7 @@ namespace NearbyChests
             if (tooltip != null)
             {
                 tooltip.m_text = Localization.instance.Localize(name) + $"\nNearby chests: {nearby}" +
-                                 (missing > 0 && nearby > 0 ? $"\nClick to take {Mathf.Min(missing, nearby)}" : "");
+                                 (Plugin.ClickIngredientToTake.Value && missing > 0 && nearby > 0 ? $"\nClick to take {Mathf.Min(missing, nearby)}" : "");
             }
 
             if (missing > 0 && nearby >= missing)

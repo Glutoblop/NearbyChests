@@ -15,7 +15,7 @@ namespace NearbyChests
     internal static class NearbyTabs
     {
         private static InventoryGui _gui;
-        private static Button _tab, _takeButton;
+        private static Button _tab, _filterButton;
         private static float _tabSpacing;
         private static bool _savedCraftInteractable, _savedUpgradeInteractable;
 
@@ -26,28 +26,30 @@ namespace NearbyChests
             _gui = gui;
             _tab = CloneTab(gui, "NearbyChests_Tab", "Nearby", Activate);
 
-            // "Take missing" button sitting above the Craft button.
-            var craft = (RectTransform)gui.m_craftButton.transform;
-            var go = Object.Instantiate(gui.m_takeAllButton.gameObject, craft.parent, false);
-            go.name = "NearbyChests_TakeMissing";
-            var rt = (RectTransform)go.transform;
-            rt.anchorMin = craft.anchorMin;
-            rt.anchorMax = craft.anchorMax;
-            rt.pivot = craft.pivot;
-            rt.sizeDelta = new Vector2(craft.sizeDelta.x, Mathf.Max(28f, craft.rect.height * 0.6f));
-            rt.anchoredPosition = craft.anchoredPosition + new Vector2(0f, craft.rect.height * (1f - craft.pivot.y) + rt.sizeDelta.y * rt.pivot.y + 6f);
-            _takeButton = go.GetComponent<Button>();
-            _takeButton.onClick = new Button.ButtonClickedEvent();
-            _takeButton.onClick.AddListener(RecipeTaker.TakeSelectedRecipe);
-            NearbyPanel.SetLabel(_takeButton, "Take missing from chests");
+            // "Filter" button that takes the Craft button's place in the Nearby tab.
+            var craft = gui.m_craftButton.transform;
+            var go = Object.Instantiate(gui.m_craftButton.gameObject, craft.parent, false);
+            go.name = "NearbyChests_Filter";
+            go.transform.SetSiblingIndex(craft.GetSiblingIndex() + 1);
+            foreach (var mb in go.GetComponents<MonoBehaviour>())
+                if (mb is UITooltip) Object.Destroy(mb);
+            _filterButton = go.GetComponent<Button>();
+            _filterButton.onClick = new Button.ButtonClickedEvent(); // drop the cloned craft listener
+            _filterButton.onClick.AddListener(NearbyPanel.ToggleFilterForSelected);
+            _filterButton.interactable = true;
+            _filterLabel = NearbyPanel.SetLabel(_filterButton, "Filter chests");
             go.SetActive(false);
         }
 
+        private static TMPro.TMP_Text _filterLabel;
+        private static string _filterText;
+
         public static void Destroy()
         {
-            foreach (var b in new[] { _tab, _takeButton })
+            foreach (var b in new[] { _tab, _filterButton })
                 if (b != null) Object.Destroy(b.gameObject);
-            _tab = _takeButton = null;
+            _tab = _filterButton = null;
+            _filterLabel = null; _filterText = null;
             Active = false;
             _gui = null;
         }
@@ -88,6 +90,7 @@ namespace NearbyChests
         {
             if (!Active) return;
             Active = false;
+            SetActive(_filterButton, false);
             if (_gui != null)
             {
                 _gui.m_tabCraft.interactable = _savedCraftInteractable;
@@ -193,8 +196,16 @@ namespace NearbyChests
             SetActive(_tab, tabVisible);
             if (tabVisible) PlaceTab();
 
-            bool showTake = visible && !_gui.IsContainerOpen() && _gui.InCraftTab() && RecipeTaker.HasSelectedRecipe();
-            SetActive(_takeButton, showTake);
+            // In the Nearby tab the Craft button becomes "Filter chests" (runs after vanilla's UpdateRecipe each frame).
+            bool showFilter = visible && Active && !_gui.IsContainerOpen() && RecipeTaker.HasSelectedRecipe();
+            if (showFilter && _gui.m_craftButton.gameObject.activeSelf) _gui.m_craftButton.gameObject.SetActive(false);
+            SetActive(_filterButton, showFilter);
+            if (showFilter)
+            {
+                string label = NearbyPanel.FilterRecipe != null && NearbyPanel.FilterRecipe == _gui.m_selectedRecipe.Recipe
+                    ? "Clear filter" : "Filter chests";
+                if (_filterLabel != null && label != _filterText) { _filterLabel.text = label; _filterText = label; }
+            }
 
             if (visible && Plugin.ToggleKey.Value.MainKey != KeyCode.None && !NearbyPanel.BlockGameInput && Plugin.ToggleKey.Value.IsDown())
             {

@@ -33,6 +33,7 @@ namespace NearbyChests
         internal static ConfigEntry<float> SearchOffsetY;
         internal static ConfigEntry<float> PanelOffsetX;
         internal static ConfigEntry<float> PanelOffsetY;
+        internal static ConfigEntry<bool> ClickIngredientToTake;
 
         private Harmony _harmony;
 
@@ -67,9 +68,11 @@ namespace NearbyChests
             PanelOffsetY = Config.Bind("Panel", "PanelOffsetY", 0f,
                 "Nudge the Nearby chests panel vertically from its spot right of the crafting panel (pixels, + = up).");
 
-            RequirementHints =Config.Bind("Crafting", "RequirementHints", true,
+            RequirementHints = Config.Bind("Crafting", "RequirementHints", true,
                 "In the crafting panel, show yellow ingredient amounts when nearby chests can cover what you're missing, " +
                 "and add the nearby count to the ingredient tooltip.");
+            ClickIngredientToTake = Config.Bind("Crafting", "ClickIngredientToTake", false,
+                "Clicking an ingredient in the crafting panel takes the missing amount from nearby chests automatically.");
 
             _harmony = new Harmony(Guid);
             _harmony.PatchAll(typeof(Plugin).Assembly);

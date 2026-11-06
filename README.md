@@ -12,14 +12,14 @@ Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for f
 Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everything at once:
 
 - **Every recipe you know**: the crafting list switches to every recipe your character has unlocked, whichever station you're at (or none), with each recipe's ingredients. Recipe Search's search box works on it as usual.
+  - Recipes your inventory plus the nearby chests can cover are listed bright (gold name) instead of greyed out; ones you can craft right now stay white.
 - **Everything in nearby chests**: a panel beside the crafting panel shows the combined contents of every chest within 30 m, as normal stacks, with its own search box. It scrolls when there's more than fits.
-- **Pull what you need**:
-  - Click a recipe's ingredient to take just what you're missing, or press **Take missing from chests** (above the Craft button) to take everything the recipe is short of.
-  - Or do it by hand: drag stacks from the chests panel into your inventory, Shift-click to split, Ctrl-click to move a whole stack. Items come out of the real chests, nearest first.
-- **Store too**: drag an item from your inventory onto the chests panel, or Ctrl-click it in your inventory, to put it in the nearby chests (chests that already hold that item first).
-- **Makeable recipes stand out**: in the Nearby tab, recipes whose ingredients your inventory plus nearby chests can cover are listed bright (gold name) instead of greyed out; recipes you can craft right now stay white.
-- **Hints**: an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count. Also works in the normal Craft tab.
-- You still need the right crafting station to actually craft.
+- **Filter by recipe**: in the Nearby tab the Craft button becomes **Filter chests**. Select a recipe, press it, and the chests panel shows only that recipe's ingredients. Press it again (or **Clear filter**) to see everything.
+- **Required amounts**: above the chests panel, the selected/filtered recipe's ingredients are listed as *need / have / in chests* (green = you have enough, yellow = the chests can cover it, red = not enough).
+- **You decide what to take**: drag stacks from the chests panel into your inventory, Shift-click to split, Ctrl-click to move a whole stack. Items come out of the real chests, nearest first.
+- **Store too**: drag an item from your inventory onto the chests panel, or Ctrl-click it in your inventory, to put it in the nearby chests.
+- **Hints**: in the crafting panel an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count.
+- Craft from the normal Craft tab (at the right station) once you've pulled what you need.
 - Skips chests another player has open, private chests that aren't yours, and chests inside wards you can't access. Tombstones are excluded by default.
 
 ## Configuration (`BepInEx/config/jordan.valheim.nearbychests.cfg`)
@@ -35,6 +35,7 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
 | Panel | SearchOffsetX / SearchOffsetY | -12 / -8 | Search box position from the panel's top-right corner. |
 | Panel | PanelOffsetX / PanelOffsetY | 0 / 0 | Nudge the chests panel from its spot right of the crafting panel. |
 | Crafting | RequirementHints | true | Yellow amounts + nearby counts on crafting ingredients. |
+| Crafting | ClickIngredientToTake | false | Clicking a crafting ingredient takes the missing amount from chests automatically. |
 
 ## Install
 

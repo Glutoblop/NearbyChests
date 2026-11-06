@@ -28,7 +28,12 @@ namespace NearbyChests
         private static TMP_Text _title;
         private static Button _takeRecipe;
         private static TMP_Text _takeRecipeLabel;
-        private static string _takeRecipeText;
+        private static TMP_Text _reqStrip;
+        private static bool _loggedLayout;
+        private static readonly HashSet<string> _filterNames = new HashSet<string>();
+
+        /// <summary>When set, the panel only shows this recipe's ingredients.</summary>
+        public static Recipe FilterRecipe { get; private set; }
         private static RectTransform _panelRt;
         private static TMP_InputField _search;
         private static string _query = string.Empty;
@@ -78,8 +83,9 @@ namespace NearbyChests
             if (_takeRecipe != null)
             {
                 _takeRecipe.onClick = new Button.ButtonClickedEvent();
-                _takeRecipe.onClick.AddListener(RecipeTaker.TakeSelectedRecipe);
-                _takeRecipeLabel = SetLabel(_takeRecipe, "Take recipe");
+                _takeRecipe.onClick.AddListener(ClearFilter);
+                _takeRecipeLabel = SetLabel(_takeRecipe, "Clear filter");
+                _takeRecipe.gameObject.SetActive(false);
             }
 
             var stackAll = Find<Button>(src, gui.m_stackAllButton.transform);
@@ -87,6 +93,16 @@ namespace NearbyChests
 
             var font = gui.m_tabCraft.GetComponentInChildren<TMP_Text>(true)?.font;
             _search = CreateSearch((RectTransform)_root.transform, font);
+
+            _reqStrip = CreateRequirementStrip(_panelRt, font);
+
+            // Move the panel to the top level of the inventory screen so nothing clips or covers it beside the
+            // crafting panel (the container slot's parent may be masked).
+            if (gui.m_inventoryRoot != null)
+            {
+                _root.transform.SetParent(gui.m_inventoryRoot, true);
+                _root.transform.SetAsLastSibling();
+            }
 
             View = new Inventory("Nearby", null, Columns, MinRows);
             NearbyTabs.Build(gui);
@@ -136,23 +152,130 @@ namespace NearbyChests
             if (!show) return;
 
             PlaceBesideCrafting();
+            LogLayoutOnce();
             Grid.UpdateInventory(View, null, _gui.m_dragItem);
             if (_resetView) { Grid.ResetView(); _resetView = false; }
-            if (_takeRecipe != null)
+            if (_takeRecipe != null && _takeRecipe.gameObject.activeSelf != (FilterRecipe != null))
+                _takeRecipe.gameObject.SetActive(FilterRecipe != null);
+            UpdateRequirementStrip(player);
+        }
+
+        // ---- Recipe filter ----
+
+        /// <summary>The "Filter chests" button (in place of Craft): show only the selected recipe's ingredients, or clear.</summary>
+        public static void ToggleFilterForSelected()
+        {
+            var recipe = _gui != null && RecipeTaker.HasSelectedRecipe() ? _gui.m_selectedRecipe.Recipe : null;
+            if (recipe == null || recipe == FilterRecipe) { ClearFilter(); return; }
+            FilterRecipe = recipe;
+            _filterNames.Clear();
+            foreach (var req in recipe.m_resources)
+                if (req?.m_resItem != null) _filterNames.Add(req.m_resItem.m_itemData.m_shared.m_name);
+            _resetView = true;
+            ForceRescan();
+        }
+
+        public static void ClearFilter()
+        {
+            if (FilterRecipe == null) return;
+            FilterRecipe = null;
+            _filterNames.Clear();
+            _resetView = true;
+            ForceRescan();
+        }
+
+        /// <summary>The ingredients and amounts for the filtered recipe (or, without a filter, the selected one).</summary>
+        private static List<(Piece.Requirement req, int need)> ShownRequirements()
+        {
+            var list = new List<(Piece.Requirement, int)>();
+            var recipe = FilterRecipe ?? (RecipeTaker.HasSelectedRecipe() ? _gui.m_selectedRecipe.Recipe : null);
+            if (recipe == null) return list;
+            bool selected = RecipeTaker.HasSelectedRecipe() && _gui.m_selectedRecipe.Recipe == recipe;
+            int quality = selected ? RecipeTaker.Quality : 1;
+            int mult = selected ? RecipeTaker.Multiplier : 1;
+            var station = Player.m_localPlayer?.GetCurrentCraftingStation();
+            foreach (var req in recipe.m_resources)
             {
-                bool has = RecipeTaker.HasSelectedRecipe();
-                _takeRecipe.interactable = has;
-                string label = has
-                    ? "Take: " + Localization.instance.Localize(_gui.m_selectedRecipe.Recipe.m_item.m_itemData.m_shared.m_name)
-                    : "Take recipe";
-                if (_takeRecipeLabel != null && label != _takeRecipeText) { _takeRecipeLabel.text = label; _takeRecipeText = label; }
+                if (req?.m_resItem == null) continue;
+                if (station != null ? station.m_upgrader != req.m_upgraderResource : req.m_upgraderResource) continue;
+                int need = req.GetAmount(quality) * mult;
+                if (need > 0) list.Add((req, need));
             }
+            return list;
+        }
+
+        /// <summary>A line above the panel: what the recipe needs, what you carry, and what the chests hold.</summary>
+        private static void UpdateRequirementStrip(Player player)
+        {
+            if (_reqStrip == null) return;
+            var recipe = FilterRecipe ?? (RecipeTaker.HasSelectedRecipe() ? _gui.m_selectedRecipe.Recipe : null);
+            var go = _reqStrip.transform.parent.gameObject;
+            if (recipe == null || player == null) { if (go.activeSelf) go.SetActive(false); return; }
+            if (!go.activeSelf) go.SetActive(true);
+
+            var loc = Localization.instance;
+            var inv = player.GetInventory();
+            var sb = new System.Text.StringBuilder();
+            sb.Append("<b>").Append(loc.Localize(recipe.m_item.m_itemData.m_shared.m_name)).Append("</b>");
+            sb.Append(FilterRecipe == recipe ? "  <color=#9fd8ff>(filtered)</color>" : "  <color=#aaaaaa>(selected - press Filter chests)</color>");
+            sb.Append("\n<size=85%><color=#aaaaaa>need / have / in chests</color></size>");
+            foreach (var (req, need) in ShownRequirements())
+            {
+                string name = req.m_resItem.m_itemData.m_shared.m_name;
+                int have = inv.CountItems(name);
+                int chests = ChestPool.CountForCrafting(name);
+                string col = have >= need ? "#8cff8c" : have + chests >= need ? "#ffd94d" : "#ff7373";
+                sb.Append("\n<color=").Append(col).Append(">").Append(loc.Localize(name)).Append(": ")
+                  .Append(need).Append(" / ").Append(have).Append(" / ").Append(chests).Append("</color>");
+            }
+            string text = sb.ToString();
+            if (_reqStrip.text != text) _reqStrip.text = text;
+        }
+
+        private static TMP_Text CreateRequirementStrip(RectTransform panel, TMP_FontAsset font)
+        {
+            var bgGo = new GameObject("NearbyChests_Requirements", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            var rt = (RectTransform)bgGo.transform;
+            rt.SetParent(panel, false);
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(0f, 4f);
+            rt.sizeDelta = new Vector2(0f, 0f);
+            bgGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
+            var vlg = bgGo.GetComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(10, 10, 6, 6);
+            vlg.childControlHeight = true;
+            vlg.childControlWidth = true;
+            vlg.childForceExpandHeight = false;
+            bgGo.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var t = CreateText(rt, "Text", font);
+            t.fontSize = 16f;
+            t.textWrappingMode = TextWrappingModes.Normal;
+            t.overflowMode = TextOverflowModes.Overflow;
+            t.alignment = TextAlignmentOptions.TopLeft;
+            t.richText = true;
+            bgGo.SetActive(false);
+            return t;
+        }
+
+        private static void LogLayoutOnce()
+        {
+            if (_loggedLayout) return;
+            _loggedLayout = true;
+            var c = new Vector3[4];
+            string R(RectTransform r) { if (r == null) return "null"; r.GetWorldCorners(c); return $"({c[0].x:0},{c[0].y:0})-({c[2].x:0},{c[2].y:0})"; }
+            Plugin.Log($"Layout: crafting={R(_gui.m_crafting)} panel={R(_panelRt)} player={R(_gui.m_player)} " +
+                       $"canvas={R(_panelRt.GetComponentInParent<Canvas>()?.rootCanvas.transform as RectTransform)}");
         }
 
         private static void OnHidden()
         {
             _root.SetActive(false);
             NearbyTabs.Deactivate();
+            FilterRecipe = null;
+            _filterNames.Clear();
             if (Plugin.ClearSearchOnClose.Value && _search != null)
             {
                 _search.SetTextWithoutNotify(string.Empty);
@@ -207,7 +330,7 @@ namespace NearbyChests
             _nextScan = Time.time + Plugin.RefreshInterval.Value;
             if (Dragging) return; // rebuilding the view would cancel the drag
             ChestPool.Scan();
-            int sig = ChestPool.Signature * 31 + _query.GetHashCode();
+            int sig = (ChestPool.Signature * 31 + _query.GetHashCode()) * 31 + (FilterRecipe != null ? FilterRecipe.GetInstanceID() : 0);
             if (sig != _shownSignature)
             {
                 _shownSignature = sig;
@@ -268,11 +391,14 @@ namespace NearbyChests
             }
 
             if (_title != null)
-                _title.text = $"Nearby chests ({ChestPool.Chests.Count})";
+                _title.text = FilterRecipe != null
+                    ? $"Nearby chests: {Localization.instance.Localize(FilterRecipe.m_item.m_itemData.m_shared.m_name)}"
+                    : $"Nearby chests ({ChestPool.Chests.Count})";
         }
 
         private static List<ItemGroup> Filter(List<ItemGroup> groups)
         {
+            if (FilterRecipe != null) groups = groups.Where(g => _filterNames.Contains(g.Sample.m_shared.m_name)).ToList();
             if (string.IsNullOrWhiteSpace(_query)) return groups;
             var loc = Localization.instance;
             return groups
