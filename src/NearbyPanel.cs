@@ -151,7 +151,7 @@ namespace NearbyChests
             }
             if (!show) return;
 
-            PlaceBesideCrafting();
+            PlaceUnderInventory();
             LogLayoutOnce();
             Grid.UpdateInventory(View, null, _gui.m_dragItem);
             if (_resetView) { Grid.ResetView(); _resetView = false; }
@@ -204,7 +204,7 @@ namespace NearbyChests
             return list;
         }
 
-        /// <summary>A line above the panel: what the recipe needs, what you carry, and what the chests hold.</summary>
+        /// <summary>A box under the panel: what the recipe needs, what you carry, and what the chests hold.</summary>
         private static void UpdateRequirementStrip(Player player)
         {
             if (_reqStrip == null) return;
@@ -237,10 +237,10 @@ namespace NearbyChests
             var bgGo = new GameObject("NearbyChests_Requirements", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
             var rt = (RectTransform)bgGo.transform;
             rt.SetParent(panel, false);
-            rt.anchorMin = new Vector2(0f, 1f);
-            rt.anchorMax = new Vector2(1f, 1f);
-            rt.pivot = new Vector2(0.5f, 0f);
-            rt.anchoredPosition = new Vector2(0f, 4f);
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -4f);
             rt.sizeDelta = new Vector2(0f, 0f);
             bgGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
             var vlg = bgGo.GetComponent<VerticalLayoutGroup>();
@@ -286,24 +286,24 @@ namespace NearbyChests
         }
 
         /// <summary>
-        /// Keep the panel beside the crafting panel (top-aligned, to its right) so recipes, ingredients and chest
-        /// contents are all visible at once. Clamped to the screen; nudge with PanelOffsetX / PanelOffsetY.
+        /// Keep the panel directly under the player inventory (left-aligned with it), where a chest normally opens,
+        /// so recipes, ingredients and chest contents are all visible at once. Clamped to the screen; nudge with PanelOffsetX / PanelOffsetY.
         /// </summary>
-        private static void PlaceBesideCrafting()
+        private static void PlaceUnderInventory()
         {
-            var crafting = _gui.m_crafting;
-            if (crafting == null) return;
+            var anchor = _gui.m_player;
+            if (anchor == null) return;
             float scale = _panelRt.lossyScale.x;
             if (scale <= 0f) return;
 
             var cc = new Vector3[4];
             var pc = new Vector3[4];
-            crafting.GetWorldCorners(cc);
+            anchor.GetWorldCorners(cc);
             _panelRt.GetWorldCorners(pc);
 
             float gap = 12f * scale;
-            float dx = (cc[2].x + gap) - pc[0].x + Plugin.PanelOffsetX.Value * scale;
-            float dy = cc[1].y - pc[1].y + Plugin.PanelOffsetY.Value * scale;
+            float dx = cc[0].x - pc[0].x + Plugin.PanelOffsetX.Value * scale;
+            float dy = (cc[0].y - gap) - pc[1].y + Plugin.PanelOffsetY.Value * scale;
 
             var canvas = _panelRt.GetComponentInParent<Canvas>();
             if (canvas != null)
