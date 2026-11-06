@@ -29,6 +29,9 @@ namespace NearbyChests
         internal static ConfigEntry<bool> IncludeCartsAndShips;
         internal static ConfigEntry<bool> RequirementHints;
         internal static ConfigEntry<float> RefreshInterval;
+        internal static ConfigEntry<bool> ClearSearchOnClose;
+        internal static ConfigEntry<float> SearchOffsetX;
+        internal static ConfigEntry<float> SearchOffsetY;
 
         private Harmony _harmony;
 
@@ -52,6 +55,13 @@ namespace NearbyChests
             RefreshInterval = Config.Bind("Panel", "RefreshInterval", 0.5f,
                 new ConfigDescription("Seconds between rescans of nearby chests while the inventory is open.",
                     new AcceptableValueRange<float>(0.1f, 5f)));
+
+            ClearSearchOnClose = Config.Bind("Panel", "ClearSearchOnClose", true,
+                "Clear the Nearby chests search box when the inventory closes.");
+            SearchOffsetX = Config.Bind("Panel", "SearchOffsetX", -12f,
+                "Horizontal position of the search box, from the panel's top-right corner (negative = left).");
+            SearchOffsetY = Config.Bind("Panel", "SearchOffsetY", -8f,
+                "Vertical position of the search box, from the panel's top-right corner (negative = down).");
 
             RequirementHints = Config.Bind("Crafting", "RequirementHints", true,
                 "In the crafting panel, show yellow ingredient amounts when nearby chests can cover what you're missing, " +

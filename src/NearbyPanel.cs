@@ -1,27 +1,44 @@
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace NearbyChests
 {
     /// <summary>
     /// A copy of the vanilla container panel, shown in its place when no chest is open, listing everything in the
-    /// nearby chests. Left-click takes one stack, Shift/Ctrl-click or right-click takes all of it.
+    /// nearby chests as normal stacks. The grid is wired to the game's own click/drag handlers, so it behaves like a
+    /// chest: drag, Shift-click to split, Ctrl-click to move. The patches in Patches.cs redirect the resulting
+    /// item moves to the real chests (the grid itself only shows copies).
     /// </summary>
     internal static class NearbyPanel
     {
         private const int Columns = 8;
         private const int MinRows = 4;
+        private const float SearchWidth = 230f;
+        private const float SearchHeight = 26f;
 
         private static InventoryGui _gui;
         private static GameObject _root;
         public static InventoryGrid Grid { get; private set; }
+        /// <summary>The fake inventory the grid displays. Never holds real items.</summary>
+        public static Inventory View { get; private set; }
         private static TMP_Text _title;
         private static Button _takeRecipe;
-        private static Inventory _view;
+        private static TMP_InputField _search;
+        private static string _query = string.Empty;
+        private static int _shownSignature;
+        private static bool _resetView;
         private static readonly Dictionary<ItemDrop.ItemData, ItemGroup> _byViewItem = new Dictionary<ItemDrop.ItemData, ItemGroup>();
         private static float _nextScan;
+
+        // Frame until which game hotkeys are suppressed (covers the frame the field loses focus on Escape/Enter).
+        private static int _blockInputUntilFrame = -1;
+        public static bool BlockGameInput => Time.frameCount <= _blockInputUntilFrame;
+
+        public static bool IsShown => _root != null && _root.activeSelf;
 
         public static void Build(InventoryGui gui)
         {
@@ -34,15 +51,17 @@ namespace NearbyChests
             _root.SetActive(false);
             _root.transform.SetSiblingIndex(src.GetSiblingIndex() + 1);
 
+            // Same handlers as the vanilla container grid.
             Grid = _root.GetComponentInChildren<InventoryGrid>(true);
-            Grid.m_onSelected = OnSelected;
-            Grid.m_onRightClick = OnRightClick;
-            Grid.m_onReleased = null;
-            Grid.m_onEnter = null;
+            Grid.m_onSelected = gui.OnSelectedItem;
+            Grid.m_onRightClick = gui.OnRightClickItem;
+            Grid.m_onReleased = gui.OnReleasedItem;
+            Grid.m_onEnter = gui.OnEnterElement;
+            Grid.CanDropDragOntoItem = gui.CanDropDragOntoItem;
             Grid.OnMoveToLowerInventoryGrid = null;
             Grid.OnMoveToUpperInventoryGrid = null;
             Grid.OnSetTouchSelection = null;
-            Grid.CanDropDragOntoItem = null;
+            EnsureScrollable(Grid);
 
             _title = Find<TMP_Text>(src, gui.m_containerName.transform);
             if (_title != null) StripLocalize(_title.gameObject);
@@ -61,16 +80,16 @@ namespace NearbyChests
             var stackAll = Find<Button>(src, gui.m_stackAllButton.transform);
             if (stackAll != null) stackAll.gameObject.SetActive(false);
 
-            var drop = gui.m_dropButton != null ? Find<Button>(src, gui.m_dropButton.transform) : null;
-            if (drop != null) drop.gameObject.SetActive(false);
+            var font = gui.m_tabCraft.GetComponentInChildren<TMP_Text>(true)?.font;
+            _search = CreateSearch((RectTransform)_root.transform, font);
 
-            _view = new Inventory("Nearby", gui.m_container.GetComponentInChildren<Image>()?.sprite, Columns, MinRows);
+            View = new Inventory("Nearby", null, Columns, MinRows);
         }
 
         public static void Destroy()
         {
             if (_root != null) Object.Destroy(_root);
-            _root = null; Grid = null; _title = null; _takeRecipe = null; _gui = null;
+            _root = null; Grid = null; _title = null; _takeRecipe = null; _search = null; _gui = null;
             _byViewItem.Clear();
         }
 
@@ -78,95 +97,142 @@ namespace NearbyChests
         public static void Tick()
         {
             if (_root == null || _gui == null) return;
+            if (_search != null && _search.isFocused) _blockInputUntilFrame = Time.frameCount + 1;
+
             var player = Player.m_localPlayer;
             bool visible = InventoryGui.IsVisible() && player != null && Plugin.Enabled.Value;
-
-            if (visible && Plugin.ToggleKey.Value.MainKey != KeyCode.None && Plugin.ToggleKey.Value.IsDown() && !TextInputFocused())
-                Plugin.ShowPanel.Value = !Plugin.ShowPanel.Value;
-
             if (!visible)
             {
-                if (_root.activeSelf) _root.SetActive(false);
+                if (_root.activeSelf) OnHidden();
                 _nextScan = 0f;
                 return;
             }
+
+            if (Plugin.ToggleKey.Value.MainKey != KeyCode.None && !BlockGameInput && Plugin.ToggleKey.Value.IsDown())
+                Plugin.ShowPanel.Value = !Plugin.ShowPanel.Value;
 
             // Keep scanning even with the panel hidden: the crafting panel's hints and click-to-take use the counts.
             if (Time.time >= _nextScan) Rescan();
 
             bool show = Plugin.ShowPanel.Value && !_gui.IsContainerOpen();
-            if (_root.activeSelf != show) _root.SetActive(show);
+            if (_root.activeSelf != show)
+            {
+                _root.SetActive(show);
+                if (show) _resetView = true;
+            }
             if (!show) return;
 
-            Grid.UpdateInventory(_view, null, null);
+            Grid.UpdateInventory(View, null, _gui.m_dragItem);
+            if (_resetView) { Grid.ResetView(); _resetView = false; }
             if (_takeRecipe != null) _takeRecipe.interactable = RecipeTaker.HasSelectedRecipe();
         }
 
-        /// <summary>Rescans chests now (also used after taking items so the counts update straight away).</summary>
+        private static void OnHidden()
+        {
+            _root.SetActive(false);
+            if (Plugin.ClearSearchOnClose.Value && _search != null)
+            {
+                _search.SetTextWithoutNotify(string.Empty);
+                _query = string.Empty;
+            }
+            if (_search != null && _search.isFocused) _search.DeactivateInputField();
+            _shownSignature = 0;
+        }
+
+        /// <summary>True while the player is dragging (or splitting) one of our fake items.</summary>
+        private static bool Dragging =>
+            _gui != null && View != null && (_gui.m_dragInventory == View || _gui.m_splitInventory == View);
+
+        /// <summary>Rescans chests now (also used after moving items so the counts update straight away).</summary>
         public static void Rescan()
         {
             _nextScan = Time.time + Plugin.RefreshInterval.Value;
+            if (Dragging) return; // rebuilding the view would cancel the drag
             ChestPool.Scan();
-            RebuildView();
+            int sig = ChestPool.Signature * 31 + _query.GetHashCode();
+            if (sig != _shownSignature)
+            {
+                _shownSignature = sig;
+                RebuildView();
+            }
         }
 
         private static void RebuildView()
         {
             _byViewItem.Clear();
-            var groups = ChestPool.Groups;
-            int rows = Mathf.Max(MinRows, (groups.Count + Columns - 1) / Columns);
-            _view.m_inventory.Clear();
-            _view.m_width = Columns;
-            _view.SetHeight(rows);
+            var groups = Filter(ChestPool.Groups);
 
-            for (int i = 0; i < groups.Count; i++)
+            var items = new List<(ItemDrop.ItemData item, ItemGroup group)>();
+            foreach (var g in groups)
             {
-                var g = groups[i];
-                var shown = g.Sample.Clone();
-                shown.m_stack = g.Total;
-                shown.m_equipped = false;
+                int left = g.Total, max = Mathf.Max(1, g.Sample.m_shared.m_maxStackSize);
+                do
+                {
+                    var shown = g.Sample.Clone();
+                    shown.m_stack = Mathf.Min(left, max);
+                    shown.m_equipped = false;
+                    items.Add((shown, g));
+                    left -= shown.m_stack;
+                } while (left > 0);
+            }
+
+            int rows = Mathf.Max(MinRows, (items.Count + Columns - 1) / Columns);
+            View.m_inventory.Clear();
+            View.m_width = Columns;
+            View.SetHeight(rows);
+            for (int i = 0; i < items.Count; i++)
+            {
+                var (shown, g) = items[i];
                 shown.m_gridPos = new Vector2i(i % Columns, i / Columns);
-                _view.m_inventory.Add(shown);
+                View.m_inventory.Add(shown);
                 _byViewItem[shown] = g;
             }
 
             if (_title != null)
-            {
-                int n = ChestPool.Chests.Count;
-                _title.text = $"Nearby chests ({n}, {Plugin.Range.Value:0}m)";
-            }
+                _title.text = $"Nearby chests ({ChestPool.Chests.Count})";
         }
 
-        /// <summary>The grid draws "500/50" for stacks bigger than a stack; show just the total.</summary>
-        public static void AfterGridUpdate(InventoryGrid grid)
+        private static List<ItemGroup> Filter(List<ItemGroup> groups)
         {
-            if (grid != Grid || _view == null) return;
-            foreach (var item in _view.GetAllItems())
-            {
-                if (item.m_shared.m_maxStackSize <= 1) continue;
-                var el = grid.GetElement(item.m_gridPos.x, item.m_gridPos.y, _view.GetWidth());
-                if (el != null) el.m_amount.text = item.m_stack.ToString();
-            }
+            if (string.IsNullOrWhiteSpace(_query)) return groups;
+            var loc = Localization.instance;
+            return groups
+                .Select(g => (g, score: Mathf.Max(
+                    FuzzyMatcher.Score(_query, loc.Localize(g.Sample.m_shared.m_name)),
+                    g.Sample.m_dropPrefab != null ? FuzzyMatcher.Score(_query, g.Sample.m_dropPrefab.name) - 1 : -1)))
+                .Where(x => x.score >= 0)
+                .OrderByDescending(x => x.score) // stable: keeps type/name order for ties
+                .Select(x => x.g)
+                .ToList();
         }
 
-        private static void OnSelected(InventoryGrid grid, ItemDrop.ItemData item, Vector2i pos, InventoryGrid.Modifier mod)
+        public static ItemGroup GroupOf(ItemDrop.ItemData shown) =>
+            shown != null && _byViewItem.TryGetValue(shown, out var g) ? g : null;
+
+        /// <summary>Takes up to <paramref name="amount"/> of the shown item's type into <paramref name="to"/>.</summary>
+        public static bool TakeShown(ItemDrop.ItemData shown, int amount, Inventory to, Vector2i? slot)
         {
-            if (item == null) return;
-            bool all = mod == InventoryGrid.Modifier.Split || mod == InventoryGrid.Modifier.Move;
-            TakeGroup(item, all);
+            var g = GroupOf(shown);
+            if (g == null) return false;
+            int got = ChestPool.Take(g.Matches, amount, to, slot, out bool full);
+            AfterMove(g.Sample.m_shared.m_name, got, full);
+            return got > 0;
         }
 
-        private static void OnRightClick(InventoryGrid grid, ItemDrop.ItemData item, Vector2i pos)
+        public static void AfterMove(string itemName, int moved, bool full)
         {
-            if (item != null) TakeGroup(item, all: true);
+            var player = Player.m_localPlayer;
+            if (player == null) return;
+            if (moved > 0) _gui?.m_moveItemEffects.Create(player.transform.position, Quaternion.identity);
+            else if (full) player.Message(MessageHud.MessageType.Center, "$inventory_full");
+            ForceRescan();
         }
 
-        private static void TakeGroup(ItemDrop.ItemData shown, bool all)
+        public static void ForceRescan()
         {
-            if (!_byViewItem.TryGetValue(shown, out var g)) return;
-            int want = all ? g.Total : Mathf.Min(g.Total, g.Sample.m_shared.m_maxStackSize);
-            int got = ChestPool.Take(g.Matches, want, out bool full);
-            Report(g.Sample.m_shared.m_name, got, want, full);
+            _shownSignature = 0;
+            _nextScan = 0f;
+            if (!Dragging) Rescan();
         }
 
         internal static void Report(string itemName, int got, int want, bool full)
@@ -175,16 +241,109 @@ namespace NearbyChests
             if (player == null) return;
             string name = Localization.instance.Localize(itemName);
             if (got > 0)
-            {
-                _gui?.m_moveItemEffects.Create(player.transform.position, Quaternion.identity);
                 player.Message(MessageHud.MessageType.TopLeft, full ? $"Took {got} {name} (inventory full)" : $"Took {got} {name}");
-            }
             else
+                player.Message(MessageHud.MessageType.Center, full ? "$inventory_full" : $"No {name} available in nearby chests");
+            AfterMove(itemName, got, full);
+        }
+
+        // ---- UI helpers ----
+
+        /// <summary>The container grid should already sit in a ScrollRect; add one if it doesn't.</summary>
+        private static void EnsureScrollable(InventoryGrid grid)
+        {
+            if (grid.GetComponentInParent<ScrollRect>(true) != null || grid.m_gridRoot == null) return;
+            var go = grid.gameObject;
+            if (go.GetComponent<RectMask2D>() == null) go.AddComponent<RectMask2D>();
+            if (go.GetComponent<Graphic>() == null) go.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0f);
+            var sr = go.AddComponent<ScrollRect>();
+            sr.content = grid.m_gridRoot;
+            sr.viewport = (RectTransform)go.transform;
+            sr.horizontal = false;
+            sr.vertical = true;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+            sr.scrollSensitivity = 30f;
+            if (grid.m_scrollbar != null)
             {
-                player.Message(MessageHud.MessageType.Center,
-                    full ? "$inventory_full" : $"No {name} available in nearby chests");
+                sr.verticalScrollbar = grid.m_scrollbar;
+                sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
             }
-            if (got > 0 || want > 0) Rescan();
+            Plugin.Log("Container grid had no ScrollRect; added one.");
+        }
+
+        private static TMP_InputField CreateSearch(RectTransform panel, TMP_FontAsset font)
+        {
+            var go = new GameObject("NearbyChests_Search", typeof(RectTransform), typeof(Image));
+            go.SetActive(false); // configure before TMP_InputField.OnEnable runs
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(panel, false);
+            rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.anchoredPosition = new Vector2(Plugin.SearchOffsetX.Value, Plugin.SearchOffsetY.Value);
+            rt.sizeDelta = new Vector2(SearchWidth, SearchHeight);
+
+            var bg = go.GetComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.55f);
+
+            var area = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
+            var areaRt = (RectTransform)area.transform;
+            areaRt.SetParent(rt, false);
+            areaRt.anchorMin = Vector2.zero;
+            areaRt.anchorMax = Vector2.one;
+            areaRt.offsetMin = new Vector2(8f, 2f);
+            areaRt.offsetMax = new Vector2(-8f, -2f);
+
+            var placeholder = CreateText(areaRt, "Placeholder", font);
+            placeholder.text = "Search nearby chests...";
+            placeholder.fontStyle = FontStyles.Italic;
+            placeholder.color = new Color(1f, 1f, 1f, 0.4f);
+
+            var text = CreateText(areaRt, "Text", font);
+            text.color = Color.white;
+
+            var input = go.AddComponent<TMP_InputField>();
+            input.targetGraphic = bg;
+            input.textViewport = areaRt;
+            input.textComponent = text;
+            input.placeholder = placeholder;
+            input.fontAsset = font;
+            input.pointSize = 16f;
+            input.lineType = TMP_InputField.LineType.SingleLine;
+            input.characterLimit = 64;
+            input.caretColor = Color.white;
+            input.customCaretColor = true;
+            input.onFocusSelectAll = true;
+            input.restoreOriginalTextOnEscape = false;
+            input.onValueChanged.AddListener(new UnityAction<string>(OnSearchChanged));
+
+            go.SetActive(true);
+            return input;
+        }
+
+        private static TextMeshProUGUI CreateText(RectTransform parent, string name, TMP_FontAsset font)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(parent, false);
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            var t = go.AddComponent<TextMeshProUGUI>();
+            if (font != null) t.font = font;
+            t.fontSize = 16f;
+            t.textWrappingMode = TextWrappingModes.NoWrap;
+            t.overflowMode = TextOverflowModes.Ellipsis;
+            t.alignment = TextAlignmentOptions.MidlineLeft;
+            t.raycastTarget = false;
+            return t;
+        }
+
+        private static void OnSearchChanged(string value)
+        {
+            _query = value ?? string.Empty;
+            _resetView = true;
+            ForceRescan();
         }
 
         private static T Find<T>(Transform srcRoot, Transform srcChild) where T : Component
@@ -220,9 +379,5 @@ namespace NearbyChests
             foreach (var mb in go.GetComponents<MonoBehaviour>())
                 if (mb != null && mb.GetType().Name == "Localize") Object.DestroyImmediate(mb);
         }
-
-        private static bool TextInputFocused() =>
-            (Chat.instance != null && Chat.instance.HasFocus()) || Console.IsVisible() ||
-            (UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject?.GetComponent<TMP_InputField>()?.isFocused ?? false);
     }
 }

@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace NearbyChests
 {
-    /// <summary>One line in the Nearby panel: a stackable item type (all stacks summed) or a single unstackable item.</summary>
+    /// <summary>One item type in the pool: a stackable item (all stacks summed) or a single unstackable item.</summary>
     internal sealed class ItemGroup
     {
         public ItemDrop.ItemData Sample;   // a real item from one of the chests (never modified)
@@ -18,7 +18,7 @@ namespace NearbyChests
                 : ReferenceEquals(item, Sample);
     }
 
-    /// <summary>Finds accessible chests near the player and moves items out of them.</summary>
+    /// <summary>Finds accessible chests near the player and moves items between them and an inventory.</summary>
     internal static class ChestPool
     {
         private static readonly HashSet<Container> _all = new HashSet<Container>();
@@ -26,6 +26,8 @@ namespace NearbyChests
         /// <summary>Accessible chests in range, nearest first. Rebuilt by <see cref="Scan"/>.</summary>
         public static readonly List<Container> Chests = new List<Container>();
         public static readonly List<ItemGroup> Groups = new List<ItemGroup>();
+        /// <summary>Changes whenever the pool's contents change, so the UI only rebuilds when needed.</summary>
+        public static int Signature { get; private set; }
         /// <summary>Per item name: amount that counts for crafting (world level matches).</summary>
         private static readonly Dictionary<string, int> _craftable = new Dictionary<string, int>();
 
@@ -38,6 +40,7 @@ namespace NearbyChests
             Chests.Clear();
             Groups.Clear();
             _craftable.Clear();
+            Signature = 0;
 
             var player = Player.m_localPlayer;
             if (player == null) return;
@@ -53,11 +56,16 @@ namespace NearbyChests
                 if (IsListed(c, playerId)) Chests.Add(c);
             }
 
+            int sig = 17;
             var stackGroups = new Dictionary<(string, int), ItemGroup>();
             foreach (var c in Chests)
             {
+                sig = sig * 31 + c.GetInstanceID();
                 foreach (var item in c.GetInventory().GetAllItems())
                 {
+                    sig = sig * 31 + item.m_shared.m_name.GetHashCode();
+                    sig = sig * 31 + item.m_stack * 7 + item.m_quality;
+
                     if (item.m_worldLevel >= Game.m_worldLevel)
                     {
                         _craftable.TryGetValue(item.m_shared.m_name, out int n);
@@ -81,6 +89,7 @@ namespace NearbyChests
                     }
                 }
             }
+            Signature = sig;
 
             var loc = Localization.instance;
             Groups.Sort((a, b) =>
@@ -94,18 +103,28 @@ namespace NearbyChests
         }
 
         /// <summary>
-        /// Moves up to <paramref name="amount"/> matching items from nearby chests (nearest first) into the player's
-        /// inventory. Returns how many were moved; stops early if the inventory is full.
+        /// Moves up to <paramref name="amount"/> matching items from nearby chests (nearest first) into
+        /// <paramref name="to"/>. With <paramref name="slot"/>, fills only that slot (like dropping a dragged stack);
+        /// if that slot holds a different item, the items go wherever they fit instead.
         /// </summary>
-        public static int Take(Func<ItemDrop.ItemData, bool> match, int amount, out bool inventoryFull)
+        public static int Take(Func<ItemDrop.ItemData, bool> match, int amount, Inventory to, Vector2i? slot, out bool full)
         {
-            inventoryFull = false;
-            var player = Player.m_localPlayer;
-            if (player == null || amount <= 0) return 0;
-            var to = player.GetInventory();
+            full = false;
+            if (to == null || amount <= 0) return 0;
+
+            if (slot.HasValue)
+            {
+                var sample = Chests.Where(c => c != null && c.GetInventory() != null)
+                    .SelectMany(c => c.GetInventory().GetAllItems()).FirstOrDefault(match);
+                if (sample == null) return 0;
+                int cap = SlotCapacity(to, slot.Value, sample);
+                if (cap < 0) slot = null;          // different item there: put it anywhere
+                else amount = Mathf.Min(amount, cap);
+                if (amount <= 0) { full = true; return 0; }
+            }
+
             long playerId = PlayerId();
             int moved = 0;
-
             foreach (var c in Chests.ToList())
             {
                 if (moved >= amount) break;
@@ -117,13 +136,39 @@ namespace NearbyChests
                 foreach (var item in from.GetAllItems().Where(match).ToList())
                 {
                     int wanted = Mathf.Min(item.m_stack, amount - moved);
-                    int n = Move(from, item, amount - moved, to);
+                    int n = slot.HasValue ? MoveToSlot(from, item, wanted, to, slot.Value) : Move(from, item, wanted, to);
                     moved += n;
-                    if (n < wanted) { inventoryFull = true; break; }
+                    if (n < wanted) { full = true; break; }
                     if (moved >= amount) break;
                 }
-                if (inventoryFull) break;
+                if (full) break;
             }
+            return moved;
+        }
+
+        /// <summary>Moves up to <paramref name="amount"/> of <paramref name="item"/> from <paramref name="from"/> into nearby chests.</summary>
+        public static int Store(Inventory from, ItemDrop.ItemData item, int amount, out bool full)
+        {
+            full = false;
+            if (from == null || item == null || amount <= 0 || item.m_shared.m_questItem) return 0;
+            amount = Mathf.Min(amount, item.m_stack);
+            long playerId = PlayerId();
+            string name = item.m_shared.m_name;
+
+            // Chests that already hold this item first, then the rest; nearest first within each.
+            var order = Chests.Where(c => c != null && c.GetInventory() != null)
+                .OrderBy(c => c.GetInventory().ContainsItemByName(name) ? 0 : 1).ToList();
+
+            int moved = 0;
+            foreach (var c in order)
+            {
+                if (moved >= amount) break;
+                var inv = c.GetInventory();
+                if (Capacity(inv, item) <= 0) continue;
+                if (!Acquire(c, playerId)) continue;
+                moved += Move(from, item, amount - moved, inv);
+            }
+            full = moved < amount;
             return moved;
         }
 
@@ -156,7 +201,7 @@ namespace NearbyChests
             return nview.IsOwner();
         }
 
-        /// <summary>Moves up to <paramref name="want"/> of <paramref name="item"/> into <paramref name="to"/>, limited by free space.</summary>
+        /// <summary>Moves up to <paramref name="want"/> of <paramref name="item"/> into <paramref name="to"/>, wherever it fits.</summary>
         private static int Move(Inventory from, ItemDrop.ItemData item, int want, Inventory to)
         {
             int n = Mathf.Min(want, item.m_stack, Capacity(to, item));
@@ -168,6 +213,29 @@ namespace NearbyChests
             if (!to.AddItem(copy)) return 0;
             from.RemoveItem(item, n);
             return n;
+        }
+
+        /// <summary>Moves up to <paramref name="want"/> of <paramref name="item"/> into one slot of <paramref name="to"/>.</summary>
+        private static int MoveToSlot(Inventory from, ItemDrop.ItemData item, int want, Inventory to, Vector2i slot)
+        {
+            int n = Mathf.Min(want, item.m_stack);
+            if (n <= 0) return 0;
+            var copy = item.Clone();
+            copy.m_stack = n;
+            copy.m_equipped = false;
+            to.AddItem(copy, n, slot.x, slot.y);   // stacks onto / places at that slot; copy.m_stack drops by what was added
+            int added = n - copy.m_stack;
+            if (added > 0) from.RemoveItem(item, added);
+            return added;
+        }
+
+        /// <summary>Room for <paramref name="item"/> at a slot: free stack space, or -1 if a different item is there.</summary>
+        private static int SlotCapacity(Inventory inv, Vector2i slot, ItemDrop.ItemData item)
+        {
+            var at = inv.GetItemAt(slot.x, slot.y);
+            if (at == null) return item.m_shared.m_maxStackSize;
+            if (at.m_shared.m_maxStackSize > 1 && at.IsSameType(item)) return at.m_shared.m_maxStackSize - at.m_stack;
+            return -1;
         }
 
         private static int Capacity(Inventory inv, ItemDrop.ItemData item)

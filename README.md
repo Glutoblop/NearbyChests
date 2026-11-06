@@ -9,8 +9,10 @@ Open your inventory and see everything stored in the chests around you, in one p
 Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for finding the recipe first.
 
 ## Features
-- **Nearby chests panel**: when the inventory is open and no chest is, the empty container area under your inventory lists the combined contents of every chest within 30 m (stacks summed, nearest chests used first).
-- **Take items**: left-click an item to take one stack; Shift/Ctrl-click or right-click to take all of it (as much as fits).
+- **Nearby chests panel**: when the inventory is open and no chest is, the empty container area under your inventory shows the combined contents of every chest within 30 m, as normal stacks. It scrolls when there's more than fits.
+- **Works like a chest**: drag a stack into your inventory, Shift-click to split, Ctrl-click to move the whole stack to your inventory. Items come out of the real chests, nearest first.
+- **Store too**: drag an item from your inventory onto the panel, or Ctrl-click it in your inventory, to put it in the nearby chests (chests that already hold that item first).
+- **Search**: a search box at the top of the panel filters it with forgiving fuzzy matching, same as Recipe Search.
 - **Take a recipe's ingredients**: select a recipe, then
   - click an ingredient in the crafting panel to take just the amount you're missing, or
   - press **Take recipe** on the Nearby panel to take everything the recipe is short of (respects the x5 multi-craft amount and upgrade quality).
@@ -27,6 +29,8 @@ Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for f
 | Panel | ShowPanel | true | Show the Nearby chests panel (toggled by ToggleKey). |
 | Panel | ToggleKey | None | Hotkey to show/hide the panel while the inventory is open. |
 | Panel | RefreshInterval | 0.5 | Seconds between rescans while the inventory is open. |
+| Panel | ClearSearchOnClose | true | Clear the search box when the inventory closes. |
+| Panel | SearchOffsetX / SearchOffsetY | -12 / -8 | Search box position from the panel's top-right corner. |
 | Crafting | RequirementHints | true | Yellow amounts + nearby counts on crafting ingredients. |
 
 ## Install

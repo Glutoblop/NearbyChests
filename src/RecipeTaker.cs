@@ -151,7 +151,7 @@ namespace NearbyChests
             }
 
             // Only items that count for crafting (world level at least the current one), same as Inventory.CountItems.
-            int got = ChestPool.Take(it => it.m_shared.m_name == name && it.m_worldLevel >= Game.m_worldLevel, missing, out full);
+            int got = ChestPool.Take(it => it.m_shared.m_name == name && it.m_worldLevel >= Game.m_worldLevel, missing, player.GetInventory(), null, out full);
             if (report) NearbyPanel.Report(name, got, missing, full);
             return got;
         }
