@@ -1,35 +1,30 @@
 using System.Collections.Generic;
 using System.Linq;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace NearbyChests
 {
     /// <summary>
-    /// Two extra tabs next to Craft / Upgrade:
-    ///   Chests      - the Nearby chests panel (items in chests within range).
-    ///   All recipes - the normal crafting list, but listing every recipe the character has unlocked, whatever
-    ///                 station you're at (or none). Recipe Search and click-to-take ingredients work as usual.
-    /// Plus a "Take missing" button above the Craft button for the selected recipe.
+    /// A "Nearby" tab next to Craft / Upgrade. While it's selected:
+    ///   - the normal crafting list shows every recipe the character has unlocked, whatever station you're at
+    ///     (or none), with its ingredients; Recipe Search works on it as usual;
+    ///   - the Nearby chests panel is shown beside the crafting panel;
+    ///   - a "Take missing from chests" button sits above the Craft button for the selected recipe.
     /// </summary>
     internal static class NearbyTabs
     {
-        public enum Mode { None, Chests, AllRecipes }
-
         private static InventoryGui _gui;
-        private static Button _chestsTab, _recipesTab, _takeButton;
+        private static Button _tab, _takeButton;
         private static float _tabSpacing;
         private static bool _savedCraftInteractable, _savedUpgradeInteractable;
 
-        public static Mode Current { get; private set; } = Mode.None;
-        public static IEnumerable<Button> Buttons => new[] { _gui?.m_tabCraft, _gui?.m_tabUpgrade, _chestsTab, _recipesTab };
+        public static bool Active { get; private set; }
 
         public static void Build(InventoryGui gui)
         {
             _gui = gui;
-            _chestsTab = CloneTab(gui, "NearbyChests_ChestsTab", "Chests", () => Activate(Mode.Chests));
-            _recipesTab = CloneTab(gui, "NearbyChests_RecipesTab", "All recipes", () => Activate(Mode.AllRecipes));
+            _tab = CloneTab(gui, "NearbyChests_Tab", "Nearby", Activate);
 
             // "Take missing" button sitting above the Craft button.
             var craft = (RectTransform)gui.m_craftButton.transform;
@@ -50,10 +45,10 @@ namespace NearbyChests
 
         public static void Destroy()
         {
-            foreach (var b in new[] { _chestsTab, _recipesTab, _takeButton })
+            foreach (var b in new[] { _tab, _takeButton })
                 if (b != null) Object.Destroy(b.gameObject);
-            _chestsTab = _recipesTab = _takeButton = null;
-            Current = Mode.None;
+            _tab = _takeButton = null;
+            Active = false;
             _gui = null;
         }
 
@@ -77,59 +72,48 @@ namespace NearbyChests
             return b;
         }
 
-        public static void Activate(Mode mode)
+        public static void Activate()
         {
-            if (_gui == null || mode == Mode.None || mode == Current) return;
-            if (Current == Mode.None)
-            {
-                _savedCraftInteractable = _gui.m_tabCraft.interactable;
-                _savedUpgradeInteractable = _gui.m_tabUpgrade.interactable;
-            }
-            Current = mode;
+            if (_gui == null || Active) return;
+            _savedCraftInteractable = _gui.m_tabCraft.interactable;
+            _savedUpgradeInteractable = _gui.m_tabUpgrade.interactable;
+            Active = true;
             ShowTabStates();
-            if (mode == Mode.AllRecipes) _gui.UpdateCraftingPanel(focusView: true); // rebuild the list with every known recipe
-            else NearbyPanel.OnChestsTabShown();
+            _gui.UpdateCraftingPanel(focusView: true); // rebuild the list with every known recipe
+            NearbyPanel.OnTabShown();
         }
 
         /// <summary>Back to Craft / Upgrade (vanilla tab pressed, or inventory closed).</summary>
         public static void Deactivate()
         {
-            if (Current == Mode.None) return;
-            bool wasAll = Current == Mode.AllRecipes;
-            Current = Mode.None;
+            if (!Active) return;
+            Active = false;
             if (_gui != null)
             {
                 _gui.m_tabCraft.interactable = _savedCraftInteractable;
                 _gui.m_tabUpgrade.interactable = _savedUpgradeInteractable;
             }
             ShowTabStates();
-            if (wasAll && _gui != null && InventoryGui.IsVisible() && Player.m_localPlayer != null) _gui.UpdateCraftingPanel();
+            if (_gui != null && InventoryGui.IsVisible() && Player.m_localPlayer != null) _gui.UpdateCraftingPanel();
         }
 
         // Vanilla marks the selected tab by making it non-interactable and asks InCraftTab/InUpradeTab.
-        // While one of ours is selected those are answered here instead (see Patches).
-        public static bool? InCraftTabOverride =>
-            Current == Mode.AllRecipes ? true
-            : Current == Mode.Chests ? !_savedCraftInteractable && _gui.m_tabCraft.gameObject.activeSelf
-            : (bool?)null;
-
-        public static bool? InUpgradeTabOverride =>
-            Current == Mode.AllRecipes ? false
-            : Current == Mode.Chests ? !_savedUpgradeInteractable && _gui.m_tabUpgrade.gameObject.activeSelf
-            : (bool?)null;
+        // While Nearby is selected the game is told it's in the Craft tab (see Patches).
+        public static bool? InCraftTabOverride => Active ? true : (bool?)null;
+        public static bool? InUpgradeTabOverride => Active ? false : (bool?)null;
 
         /// <summary>UpdateCraftingPanel prefix: give vanilla its real tab state back for the duration of the call.</summary>
         public static void BeforeCraftingPanelUpdate()
         {
-            if (Current == Mode.None || _gui == null) return;
+            if (!Active || _gui == null) return;
             _gui.m_tabCraft.interactable = _savedCraftInteractable;
             _gui.m_tabUpgrade.interactable = _savedUpgradeInteractable;
         }
 
-        /// <summary>UpdateCraftingPanel postfix: remember what vanilla chose, then show our tab as the selected one again.</summary>
+        /// <summary>UpdateCraftingPanel postfix: remember what vanilla chose, then show Nearby as the selected tab again.</summary>
         public static void AfterCraftingPanelUpdate()
         {
-            if (Current == Mode.None || _gui == null) return;
+            if (!Active || _gui == null) return;
             _savedCraftInteractable = _gui.m_tabCraft.interactable;
             _savedUpgradeInteractable = _gui.m_tabUpgrade.interactable;
             ShowTabStates();
@@ -138,19 +122,18 @@ namespace NearbyChests
         private static void ShowTabStates()
         {
             if (_gui == null) return;
-            if (Current != Mode.None)
+            if (Active)
             {
                 _gui.m_tabCraft.interactable = true;
                 _gui.m_tabUpgrade.interactable = true;
             }
-            if (_chestsTab != null) _chestsTab.interactable = Current != Mode.Chests;
-            if (_recipesTab != null) _recipesTab.interactable = Current != Mode.AllRecipes;
+            if (_tab != null) _tab.interactable = !Active;
         }
 
-        /// <summary>Player.GetAvailableRecipes postfix: in the All recipes tab, list every unlocked recipe.</summary>
+        /// <summary>Player.GetAvailableRecipes postfix: in the Nearby tab, list every unlocked recipe.</summary>
         public static void OverrideAvailableRecipes(Player player, List<Recipe> available)
         {
-            if (Current != Mode.AllRecipes || ObjectDB.instance == null) return;
+            if (!Active || ObjectDB.instance == null) return;
             bool all = player.NoCostCheat() || (ZoneSystem.instance != null && ZoneSystem.instance.GetGlobalKey(GlobalKeys.AllRecipesUnlocked));
             var known = ObjectDB.instance.m_recipes.Where(r =>
                 r != null && r.m_item != null && r.m_enabled &&
@@ -161,24 +144,20 @@ namespace NearbyChests
                 if (!available.Contains(r)) available.Add(r);
         }
 
-        /// <summary>Every frame while the inventory is open.</summary>
+        /// <summary>Every frame.</summary>
         public static void Tick(bool visible)
         {
-            if (_gui == null || _chestsTab == null) return;
-            bool tabsVisible = visible && !_gui.IsContainerOpen();
-            SetActive(_chestsTab, tabsVisible);
-            SetActive(_recipesTab, tabsVisible);
-            if (tabsVisible) PlaceTabs();
+            if (_gui == null || _tab == null) return;
+            bool tabVisible = visible && !_gui.IsContainerOpen();
+            SetActive(_tab, tabVisible);
+            if (tabVisible) PlaceTab();
 
-            bool showTake = visible && !_gui.IsContainerOpen() && Current != Mode.Chests &&
-                            _gui.InCraftTab() && RecipeTaker.HasSelectedRecipe();
+            bool showTake = visible && !_gui.IsContainerOpen() && _gui.InCraftTab() && RecipeTaker.HasSelectedRecipe();
             SetActive(_takeButton, showTake);
 
             if (visible && Plugin.ToggleKey.Value.MainKey != KeyCode.None && !NearbyPanel.BlockGameInput && Plugin.ToggleKey.Value.IsDown())
             {
-                if (Current == Mode.Chests) Activate(Mode.AllRecipes);
-                else if (Current == Mode.AllRecipes) _gui.OnTabCraftPressed();
-                else Activate(Mode.Chests);
+                if (Active) _gui.OnTabCraftPressed(); else Activate();
             }
         }
 
@@ -187,8 +166,8 @@ namespace NearbyChests
             if (b != null && b.gameObject.activeSelf != on) b.gameObject.SetActive(on);
         }
 
-        /// <summary>Put our tabs just right of the rightmost visible vanilla tab.</summary>
-        private static void PlaceTabs()
+        /// <summary>Put the Nearby tab just right of the rightmost visible vanilla tab.</summary>
+        private static void PlaceTab()
         {
             var craft = (RectTransform)_gui.m_tabCraft.transform;
             var upgrade = (RectTransform)_gui.m_tabUpgrade.transform;
@@ -196,12 +175,8 @@ namespace NearbyChests
                 _tabSpacing = upgrade.anchoredPosition.x - craft.anchoredPosition.x;
             var last = upgrade.gameObject.activeSelf ? upgrade : craft;
             float step = Mathf.Abs(_tabSpacing) > 1f ? _tabSpacing : last.rect.width + 4f;
-            Place((RectTransform)_chestsTab.transform, last.anchoredPosition + new Vector2(step, 0f));
-            Place((RectTransform)_recipesTab.transform, last.anchoredPosition + new Vector2(step * 2f, 0f));
-        }
-
-        private static void Place(RectTransform rt, Vector2 pos)
-        {
+            var rt = (RectTransform)_tab.transform;
+            var pos = last.anchoredPosition + new Vector2(step, 0f);
             if ((rt.anchoredPosition - pos).sqrMagnitude > 0.25f) rt.anchoredPosition = pos;
         }
     }

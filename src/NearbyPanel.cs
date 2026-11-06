@@ -30,7 +30,6 @@ namespace NearbyChests
         private static TMP_Text _takeRecipeLabel;
         private static string _takeRecipeText;
         private static RectTransform _panelRt;
-        private static float _origOffsetMaxY;
         private static TMP_InputField _search;
         private static string _query = string.Empty;
         private static int _shownSignature;
@@ -56,7 +55,6 @@ namespace NearbyChests
             _root.SetActive(false);
             _root.transform.SetSiblingIndex(src.GetSiblingIndex() + 1);
             _panelRt = (RectTransform)_root.transform;
-            _origOffsetMaxY = _panelRt.offsetMax.y;
 
             // Same handlers as the vanilla container grid.
             Grid = _root.GetComponentInChildren<InventoryGrid>(true);
@@ -102,7 +100,7 @@ namespace NearbyChests
             _byViewItem.Clear();
         }
 
-        public static void OnChestsTabShown()
+        public static void OnTabShown()
         {
             _resetView = true;
             ForceRescan();
@@ -129,7 +127,7 @@ namespace NearbyChests
             // Keep scanning even with the panel hidden: the crafting panel's hints and click-to-take use the counts.
             if (Time.time >= _nextScan) Rescan();
 
-            bool show = NearbyTabs.Current == NearbyTabs.Mode.Chests && !_gui.IsContainerOpen();
+            bool show = NearbyTabs.Active && !_gui.IsContainerOpen();
             if (_root.activeSelf != show)
             {
                 _root.SetActive(show);
@@ -137,7 +135,7 @@ namespace NearbyChests
             }
             if (!show) return;
 
-            KeepTabsClear();
+            PlaceBesideCrafting();
             Grid.UpdateInventory(View, null, _gui.m_dragItem);
             if (_resetView) { Grid.ResetView(); _resetView = false; }
             if (_takeRecipe != null)
@@ -165,33 +163,38 @@ namespace NearbyChests
         }
 
         /// <summary>
-        /// The panel sits where the crafting panel is; make sure it stops below the tab strip so the
-        /// Craft / Upgrade / Chests / All recipes tabs stay clickable.
+        /// Keep the panel beside the crafting panel (top-aligned, to its right) so recipes, ingredients and chest
+        /// contents are all visible at once. Clamped to the screen; nudge with PanelOffsetX / PanelOffsetY.
         /// </summary>
-        private static void KeepTabsClear()
+        private static void PlaceBesideCrafting()
         {
-            var panel = new Vector3[4];
-            _panelRt.GetWorldCorners(panel);
-            float scale = _panelRt.lossyScale.y;
+            var crafting = _gui.m_crafting;
+            if (crafting == null) return;
+            float scale = _panelRt.lossyScale.x;
             if (scale <= 0f) return;
-            float origTop = panel[1].y + (_origOffsetMaxY - _panelRt.offsetMax.y) * scale;
-            float bottom = panel[0].y;
 
-            float tabsBottom = float.MaxValue;
-            var c = new Vector3[4];
-            foreach (var b in NearbyTabs.Buttons)
+            var cc = new Vector3[4];
+            var pc = new Vector3[4];
+            crafting.GetWorldCorners(cc);
+            _panelRt.GetWorldCorners(pc);
+
+            float gap = 12f * scale;
+            float dx = (cc[2].x + gap) - pc[0].x + Plugin.PanelOffsetX.Value * scale;
+            float dy = cc[1].y - pc[1].y + Plugin.PanelOffsetY.Value * scale;
+
+            var canvas = _panelRt.GetComponentInParent<Canvas>();
+            if (canvas != null)
             {
-                if (b == null || !b.gameObject.activeInHierarchy) continue;
-                ((RectTransform)b.transform).GetWorldCorners(c);
-                bool overlapsX = c[2].x > panel[0].x && c[0].x < panel[2].x;
-                if (overlapsX && c[1].y > bottom) tabsBottom = Mathf.Min(tabsBottom, c[0].y);
+                var sc = new Vector3[4];
+                ((RectTransform)canvas.rootCanvas.transform).GetWorldCorners(sc);
+                float overRight = pc[2].x + dx - (sc[2].x - 8f * scale);
+                if (overRight > 0f) dx -= overRight;
+                float underBottom = (sc[0].y + 8f * scale) - (pc[0].y + dy);
+                if (underBottom > 0f) dy += underBottom;
             }
 
-            float desiredTop = origTop;
-            if (tabsBottom < origTop && tabsBottom > bottom + 50f * scale) desiredTop = tabsBottom - 2f * scale;
-            float newOffset = _origOffsetMaxY - (origTop - desiredTop) / scale;
-            if (Mathf.Abs(newOffset - _panelRt.offsetMax.y) > 0.5f)
-                _panelRt.offsetMax = new Vector2(_panelRt.offsetMax.x, newOffset);
+            if (Mathf.Abs(dx) > 0.5f * scale || Mathf.Abs(dy) > 0.5f * scale)
+                _panelRt.anchoredPosition += new Vector2(dx, dy) / scale;
         }
 
         /// <summary>True while the player is dragging (or splitting) one of our fake items.</summary>
