@@ -84,6 +84,7 @@ namespace NearbyChests
         private void OnDestroy()
         {
             _harmony?.UnpatchSelf();
+            CraftQueue.Destroy(InventoryGui.instance);
             NearbyPanel.Destroy();
         }
 

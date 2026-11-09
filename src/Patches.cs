@@ -41,19 +41,37 @@ namespace NearbyChests
             {
                 NearbyPanel.Build(__instance);
                 RecipeTaker.AttachSlots(__instance);
+                CraftQueue.Build(__instance);
             }
             catch (System.Exception e) { Plugin.Warn("Failed to build Nearby chests UI: " + e); }
         }
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnDestroy))]
-        private static void OnDestroy() => NearbyPanel.Destroy();
+        private static void OnDestroy(InventoryGui __instance)
+        {
+            CraftQueue.Destroy(__instance);
+            NearbyPanel.Destroy();
+        }
 
         [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.Update))]
-        private static void Update()
+        private static void Update(InventoryGui __instance)
         {
-            try { NearbyPanel.Tick(); }
+            try
+            {
+                NearbyPanel.Tick();
+                CraftQueue.Tick(__instance);
+            }
             catch (System.Exception e) { Plugin.Warn("Nearby chests update failed: " + e); }
         }
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.UpdateRecipe))]
+        private static void UpdateRecipe(InventoryGui __instance) => CraftQueue.CheckSelection(__instance);
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.Hide))]
+        private static void Hide(InventoryGui __instance) => CraftQueue.Clear(__instance);
+
+        [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnCraftCancelPressed))]
+        private static void CancelQueue(InventoryGui __instance) => CraftQueue.Clear(__instance);
 
         // With no chest open, vanilla cancels any drag that didn't start in the player's inventory every frame.
         // Let drags from the Nearby grid survive; otherwise behave exactly like vanilla's no-container branch.
@@ -78,7 +96,11 @@ namespace NearbyChests
         private static void UpdateCraftingPanelPrefix() => NearbyTabs.BeforeCraftingPanelUpdate();
 
         [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.UpdateCraftingPanel))]
-        private static void UpdateCraftingPanelPostfix() => NearbyTabs.AfterCraftingPanelUpdate();
+        private static void UpdateCraftingPanelPostfix()
+        {
+            NearbyTabs.AfterCraftingPanelUpdate();
+            CraftQueue.CraftingPanelUpdated();
+        }
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.AddRecipeToList))]
         private static void AddRecipeToListPrefix(Player player, Recipe recipe, ItemDrop.ItemData item, ref bool canCraft, out bool __state)
@@ -93,15 +115,19 @@ namespace NearbyChests
 
         // Build pieces are listed as stand-in recipes; they can't be crafted, only placed with their tool.
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.OnCraftPressed))]
-        private static bool OnCraftPressed(InventoryGui __instance) => !BuildPieces.IsBuildPiece(__instance.m_selectedRecipe.Recipe);
+        private static bool OnCraftPressed(InventoryGui __instance) =>
+            !BuildPieces.IsBuildPiece(__instance.m_selectedRecipe.Recipe) && CraftQueue.OnCraftPressed(__instance);
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.DoCrafting))]
-        private static bool DoCrafting(InventoryGui __instance)
+        private static bool DoCrafting(InventoryGui __instance, Player player)
         {
-            if (!BuildPieces.IsBuildPiece(__instance.m_craftRecipe)) return true;
+            if (!BuildPieces.IsBuildPiece(__instance.m_craftRecipe)) return CraftQueue.BeforeCompletion(__instance, player);
             __instance.m_craftRecipe = null;
             return false;
         }
+
+        [HarmonyPostfix, HarmonyPatch(nameof(InventoryGui.DoCrafting))]
+        private static void AfterDoCrafting(InventoryGui __instance) => CraftQueue.AfterCompletion(__instance);
 
         [HarmonyPrefix, HarmonyPatch(nameof(InventoryGui.InCraftTab))]
         private static bool InCraftTab(ref bool __result)
