@@ -89,60 +89,183 @@ namespace NearbyChests
             return gui != null && gui.m_selectedRecipe.Recipe != null && gui.m_reqList.Count > 0;
         }
 
-        /// <summary>"Take recipe" button: take everything the selected recipe is short of.</summary>
-        public static void TakeSelectedRecipe()
+        public static void UpdateGrabButtons(InventoryGui gui, Inventory inventory, int[] quantities, Button[] buttons)
         {
-            if (!Plugin.Enabled.Value || !HasSelectedRecipe()) return;
-            var gui = InventoryGui.instance;
-            var player = Player.m_localPlayer;
-            if (player == null) return;
-
-            var reqs = gui.m_reqList.Where(r => r?.m_resItem != null)
-                .Select(r => (r, r.GetAmount(_quality) * _multiplier)).ToList();
-            TakeFor(reqs, gui.m_selectedRecipe.Recipe.m_requireOnlyOneIngredient);
+            var stock = GetGrabStock(gui);
+            for (int i = 0; i < buttons.Length; i++)
+                buttons[i].interactable = PlanGrab(gui, inventory, quantities[i], stock)?.Count > 0;
         }
 
-        /// <summary>Take whatever is missing for a list of (requirement, amount needed).</summary>
-        public static void TakeFor(List<(Piece.Requirement req, int need)> reqs, bool requireOnlyOne)
+        public static void GrabSelected(InventoryGui gui, int quantity)
         {
-            var gui = InventoryGui.instance;
             var player = Player.m_localPlayer;
-            if (!Plugin.Enabled.Value || player == null || reqs.Count == 0) return;
-            int Have(Piece.Requirement r) => player.GetInventory().CountItems(r.m_resItem.m_itemData.m_shared.m_name);
+            if (player == null || !Plugin.Enabled.Value || !NearbyTabs.Active || !InventoryGui.IsVisible() ||
+                gui.IsContainerOpen() || !HasSelectedRecipe() || gui.m_dragItem != null) return;
 
-            if (requireOnlyOne)
+            var inventory = player.GetInventory();
+            ChestPool.Scan();
+            var acquired = new HashSet<Container>();
+            var blocked = new HashSet<Container>();
+            while (true)
             {
-                // Any single ingredient will do: stop if one is already covered, else take the first one the chests can cover.
-                if (reqs.Any(x => Have(x.req) >= x.need)) { player.Message(MessageHud.MessageType.Center, "You already have what this recipe needs"); return; }
-                var pick = reqs.FirstOrDefault(x => Have(x.req) + ChestPool.CountForCrafting(x.req.m_resItem.m_itemData.m_shared.m_name) >= x.need);
-                if (pick.req == null) pick = reqs[0];
-                TakeMissing(pick.req, pick.need, report: true);
-                return;
+                var moves = PlanGrab(gui, inventory, quantity, GetGrabStock(gui, blocked));
+                if (moves == null || moves.Count == 0)
+                {
+                    player.Message(MessageHud.MessageType.Center, "Available ingredients or inventory space changed");
+                    break;
+                }
+
+                var next = moves.FirstOrDefault(move => !acquired.Contains(move.Chest)).Chest;
+                if (next == null)
+                {
+                    if (ChestPool.TakeGrab(moves, inventory))
+                    {
+                        gui.m_moveItemEffects.Create(player.transform.position, Quaternion.identity);
+                        player.Message(MessageHud.MessageType.TopLeft, "Took the recipe's ingredients from nearby chests");
+                    }
+                    else player.Message(MessageHud.MessageType.Center, "Could not finish taking the recipe's ingredients");
+                    break;
+                }
+
+                // Acquiring a chest reloads its inventory. Plan again from the actual stacks before moving anything.
+                if (ChestPool.AcquireForGrab(next)) acquired.Add(next);
+                else blocked.Add(next);
             }
 
-            int took = 0, short_ = 0;
-            bool full = false;
-            foreach (var (r, need) in reqs)
-            {
-                int missing = need - Have(r);
-                if (missing <= 0) continue;
-                int got = TakeMissing(r, need, report: false, out bool f);
-                took += got;
-                if (got < missing) short_++;
-                full |= f;
-            }
-
-            if (took == 0 && short_ == 0)
-                player.Message(MessageHud.MessageType.Center, "You already have what this recipe needs");
-            else if (full)
-                player.Message(MessageHud.MessageType.Center, "$inventory_full");
-            else if (short_ > 0)
-                player.Message(MessageHud.MessageType.Center, took > 0 ? "Took what was available; nearby chests are still short" : "Nearby chests don't have the missing ingredients");
-            else
-                player.Message(MessageHud.MessageType.TopLeft, "Took the recipe's ingredients from nearby chests");
-
-            if (took > 0) gui?.m_moveItemEffects.Create(player.transform.position, Quaternion.identity);
             NearbyPanel.ForceRescan();
+        }
+
+        private static ILookup<string, ChestPool.GrabMove> GetGrabStock(InventoryGui gui, HashSet<Container> blocked = null)
+        {
+            var names = new HashSet<string>(gui.m_reqList.Select(req => req.m_resItem.m_itemData.m_shared.m_name));
+            return ChestPool.GrabbableChests()
+                .Where(chest => blocked == null || !blocked.Contains(chest))
+                .SelectMany(chest => chest.GetInventory().GetAllItems()
+                    .Where(item => item.m_stack > 0 && item.m_worldLevel >= Game.m_worldLevel && names.Contains(item.m_shared.m_name))
+                    .Select(item => new ChestPool.GrabMove(chest, item, item.m_stack)))
+                .ToLookup(move => move.Item.m_shared.m_name);
+        }
+
+        private static List<ChestPool.GrabMove> PlanGrab(InventoryGui gui, Inventory inventory, int quantity,
+            ILookup<string, ChestPool.GrabMove> stock)
+        {
+            var recipe = gui.m_selectedRecipe.Recipe;
+            int quality = (gui.m_selectedRecipe.ItemData?.m_quality ?? 0) + 1;
+            int slotsLeft = Mathf.Max(0, inventory.GetEmptySlots());
+            var plan = new List<ChestPool.GrabMove>();
+
+            // Vanilla crafts in whole batches and checks the amount available at a single ingredient quality.
+            if (recipe.m_requireOnlyOneIngredient)
+            {
+                List<ChestPool.GrabMove> best = null;
+                foreach (var req in gui.m_reqList)
+                {
+                    var ingredient = req.m_resItem.m_itemData.m_shared;
+                    for (int q = 1; q <= ingredient.m_maxQuality; q++)
+                    {
+                        int yield = recipe.m_amount + Mathf.CeilToInt((q - 1) * recipe.m_amount * recipe.m_qualityResultAmountMultiplier)
+                            + req.m_extraAmountOnlyOneIngredient;
+                        int need = req.GetAmount(quality) * CraftsFor(quantity, yield);
+                        var moves = PlanIngredient(inventory, ingredient.m_name, q, need, stock[ingredient.m_name], out int slots);
+                        if (moves == null) continue;
+                        if (moves.Count == 0) return moves;
+                        if (slots > slotsLeft) continue;
+                        best = moves;
+                        slotsLeft = slots - 1;
+                    }
+                }
+                return best;
+            }
+
+            int crafts = CraftsFor(quantity, recipe.m_amount);
+            foreach (var reqs in gui.m_reqList.GroupBy(req => req.m_resItem.m_itemData.m_shared.m_name))
+            {
+                int need = reqs.Sum(req => req.GetAmount(quality)) * crafts;
+                int maxQuality = reqs.First().m_resItem.m_itemData.m_shared.m_maxQuality;
+                List<ChestPool.GrabMove> best = null;
+                int bestSlots = slotsLeft + 1;
+                for (int q = 1; q <= maxQuality; q++)
+                {
+                    var moves = PlanIngredient(inventory, reqs.Key, q, need, stock[reqs.Key], out int slots);
+                    if (moves == null) continue;
+                    if (moves.Count == 0)
+                    {
+                        best = moves;
+                        bestSlots = 0;
+                        break;
+                    }
+                    if (slots >= bestSlots) continue;
+                    best = moves;
+                    bestSlots = slots;
+                }
+                if (best == null) return null;
+                slotsLeft -= bestSlots;
+                plan.AddRange(best);
+            }
+            return plan;
+        }
+
+        private static int CraftsFor(int quantity, int yield) => 1 + (quantity - 1) / Mathf.Max(1, yield);
+
+        private static List<ChestPool.GrabMove> PlanIngredient(Inventory inventory, string name, int quality, int need,
+            IEnumerable<ChestPool.GrabMove> stock, out int slots)
+        {
+            slots = 0;
+            var plan = new List<ChestPool.GrabMove>();
+            int missing = need - inventory.CountItems(name, quality);
+            if (missing <= 0) return plan;
+
+            var stacks = stock.Where(move => move.Item.m_quality == quality)
+                .GroupBy(move => move.Item.m_worldLevel)
+                .Select(group =>
+                {
+                    var sample = group.First().Item;
+                    int total = group.Sum(move => move.Amount);
+                    int room = Mathf.Min(total, ChestPool.StackSpace(inventory, sample));
+                    return (sources: group, total, room, maxStack: sample.m_shared.m_maxStackSize);
+                })
+                .ToList();
+            if (stacks.Sum(stack => stack.total) < missing) return null;
+
+            // Fill compatible stacks first, then use whichever stock would fill the most of the next slot.
+            var amounts = new int[stacks.Count];
+            for (int i = 0; i < stacks.Count && missing > 0; i++)
+            {
+                amounts[i] = Mathf.Min(missing, stacks[i].room);
+                missing -= amounts[i];
+            }
+
+            int freeSlots = inventory.GetEmptySlots();
+            while (missing > 0)
+            {
+                if (slots >= freeSlots) return null;
+                int best = 0, capacity = 0;
+                for (int i = 0; i < stacks.Count; i++)
+                {
+                    int available = Mathf.Min(stacks[i].maxStack, stacks[i].total - amounts[i]);
+                    if (available <= capacity) continue;
+                    best = i;
+                    capacity = available;
+                }
+                if (capacity == 0) return null;
+                int take = Mathf.Min(missing, capacity);
+                amounts[best] += take;
+                missing -= take;
+                slots++;
+            }
+
+            for (int i = 0; i < stacks.Count; i++)
+            {
+                int take = amounts[i];
+                foreach (var source in stacks[i].sources)
+                {
+                    if (take == 0) break;
+                    int amount = Mathf.Min(take, source.Amount);
+                    plan.Add(new ChestPool.GrabMove(source.Chest, source.Item, amount));
+                    take -= amount;
+                }
+            }
+            return plan;
         }
 
         public static int TakeMissing(Piece.Requirement req, int need, bool report) => TakeMissing(req, need, report, out _);

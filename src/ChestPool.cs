@@ -21,6 +21,20 @@ namespace NearbyChests
     /// <summary>Finds accessible chests near the player and moves items between them and an inventory.</summary>
     internal static class ChestPool
     {
+        internal readonly struct GrabMove
+        {
+            public readonly Container Chest;
+            public readonly ItemDrop.ItemData Item;
+            public readonly int Amount;
+
+            public GrabMove(Container chest, ItemDrop.ItemData item, int amount)
+            {
+                Chest = chest;
+                Item = item;
+                Amount = amount;
+            }
+        }
+
         private static readonly HashSet<Container> _all = new HashSet<Container>();
 
         /// <summary>Accessible chests in range, nearest first. Rebuilt by <see cref="Scan"/>.</summary>
@@ -34,6 +48,36 @@ namespace NearbyChests
         public static void Register(Container c) { if (c != null) _all.Add(c); }
 
         public static int CountForCrafting(string name) => _craftable.TryGetValue(name, out int n) ? n : 0;
+
+        public static IEnumerable<Container> GrabbableChests()
+        {
+            long playerId = PlayerId();
+            return Chests.Where(c => c != null && IsListed(c, playerId) && !IsBusy(c));
+        }
+
+        public static bool AcquireForGrab(Container chest) => Acquire(chest, PlayerId());
+
+        public static bool TakeGrab(List<GrabMove> moves, Inventory to)
+        {
+            // Check every source after the ownership hand-off, before moving any ingredients.
+            long playerId = PlayerId();
+            if (moves.Any(move => move.Chest == null || !IsListed(move.Chest, playerId) || !move.Chest.IsOwner() || IsBusy(move.Chest) ||
+                !move.Chest.GetInventory().ContainsItem(move.Item) || move.Item.m_stack < move.Amount))
+                return false;
+
+            foreach (var move in moves)
+            {
+                var from = move.Chest.GetInventory();
+                int remaining = move.Amount;
+                while (remaining > 0)
+                {
+                    int count = Mathf.Min(remaining, move.Item.m_shared.m_maxStackSize);
+                    if (Move(from, move.Item, count, to) != count) return false;
+                    remaining -= count;
+                }
+            }
+            return true;
+        }
 
         public static void Scan()
         {
@@ -192,13 +236,18 @@ namespace NearbyChests
             if (gui != null && gui.m_currentContainer == c) return true; // we have it open ourselves
 
             var nview = c.m_nview;
-            bool inUse = nview.IsOwner() ? c.IsInUse() : nview.GetZDO().GetInt(ZDOVars.s_inUse) == 1;
-            if (inUse) return false;
-            if (c.m_wagon != null && c.m_wagon.InUse()) return false;
+            if (IsBusy(c)) return false;
 
             if (!nview.IsOwner()) nview.ClaimOwnership();
             c.Load(); // pick up any change made just before we claimed it
             return nview.IsOwner();
+        }
+
+        private static bool IsBusy(Container c)
+        {
+            var nview = c.m_nview;
+            bool inUse = nview.IsOwner() ? c.IsInUse() : nview.GetZDO().GetInt(ZDOVars.s_inUse) == 1;
+            return inUse || (c.m_wagon != null && c.m_wagon.InUse());
         }
 
         /// <summary>Moves up to <paramref name="want"/> of <paramref name="item"/> into <paramref name="to"/>, wherever it fits.</summary>
@@ -210,9 +259,19 @@ namespace NearbyChests
             var copy = item.Clone();
             copy.m_stack = n;
             copy.m_equipped = false;
-            if (!to.AddItem(copy)) return 0;
-            from.RemoveItem(item, n);
-            return n;
+            if (!from.RemoveItem(item, n)) return 0;
+            if (to.AddItem(copy)) return n;
+
+            // Vanilla may fill some existing stacks before failing to place the remainder.
+            int remainder = copy.m_stack;
+            if (!from.ContainsItem(item))
+            {
+                item.m_stack = 0;
+                from.GetAllItems().Add(item);
+            }
+            item.m_stack += remainder;
+            from.Changed();
+            return n - remainder;
         }
 
         /// <summary>Moves up to <paramref name="want"/> of <paramref name="item"/> into one slot of <paramref name="to"/>.</summary>
@@ -240,15 +299,17 @@ namespace NearbyChests
 
         private static int Capacity(Inventory inv, ItemDrop.ItemData item)
         {
-            int max = item.m_shared.m_maxStackSize;
-            int free = inv.GetEmptySlots() * max;
-            if (max > 1)
-            {
-                foreach (var it in inv.GetAllItems())
-                    if (it.m_shared.m_name == item.m_shared.m_name && it.m_quality == item.m_quality &&
-                        it.m_worldLevel == item.m_worldLevel && it.m_stack < max)
-                        free += max - it.m_stack;
-            }
+            return Mathf.Max(0, inv.GetEmptySlots()) * item.m_shared.m_maxStackSize + StackSpace(inv, item);
+        }
+
+        public static int StackSpace(Inventory inv, ItemDrop.ItemData item)
+        {
+            if (item.m_shared.m_maxStackSize <= 1) return 0;
+            int free = 0;
+            foreach (var it in inv.GetAllItems())
+                if (it.m_shared.m_name == item.m_shared.m_name && it.m_quality == item.m_quality &&
+                    it.m_worldLevel == item.m_worldLevel)
+                    free += Mathf.Max(0, it.m_shared.m_maxStackSize - it.m_stack);
             return free;
         }
 

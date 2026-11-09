@@ -370,6 +370,7 @@ namespace NearbyChests
             _nextScan = Time.time + Plugin.RefreshInterval.Value;
             if (Dragging) return; // rebuilding the view would cancel the drag
             ChestPool.Scan();
+            NearbyTabs.InvalidateGrabButtons();
             int sig = (ChestPool.Signature * 31 + _query.GetHashCode()) * 31 + (FilterRecipe != null ? FilterRecipe.GetInstanceID() : 0);
             if (sig != _shownSignature)
             {

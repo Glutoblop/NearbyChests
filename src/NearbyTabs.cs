@@ -10,12 +10,16 @@ namespace NearbyChests
     ///   - the normal crafting list shows every recipe the character has unlocked, whatever station you're at
     ///     (or none), with its ingredients; Recipe Search works on it as usual;
     ///   - the Nearby chests panel is shown beside the crafting panel;
-    ///   - a "Take missing from chests" button sits above the Craft button for the selected recipe.
+    ///   - grab buttons above "Filter chests" take the ingredients the selected recipe is missing.
     /// </summary>
     internal static class NearbyTabs
     {
         private static InventoryGui _gui;
         private static Button _tab, _filterButton;
+        private static readonly int[] GrabQuantities = { 1, 5, 10 };
+        private static readonly Button[] GrabButtons = new Button[GrabQuantities.Length];
+        private static Recipe _grabRecipe;
+        private static int _grabState;
         private static float _tabSpacing;
         private static bool _savedCraftInteractable, _savedUpgradeInteractable;
 
@@ -38,6 +42,34 @@ namespace NearbyChests
             _filterButton.onClick.AddListener(NearbyPanel.ToggleFilterForSelected);
             _filterButton.interactable = true;
             _filterLabel = NearbyPanel.SetLabel(_filterButton, "Filter chests");
+
+            for (int i = 0; i < GrabButtons.Length; i++)
+            {
+                int quantity = GrabQuantities[i];
+                var button = Object.Instantiate(gui.m_craftButton, go.transform, false);
+                GrabButtons[i] = button;
+                button.name = $"NearbyChests_Grab{quantity}";
+                var tooltip = button.GetComponent<UITooltip>();
+                if (tooltip != null) Object.Destroy(tooltip);
+                button.onClick = new Button.ButtonClickedEvent();
+                button.onClick.AddListener(() => Grab(quantity));
+                button.interactable = false;
+                button.gameObject.SetActive(true);
+
+                var rect = (RectTransform)button.transform;
+                rect.localScale = Vector3.one;
+                rect.anchorMin = new Vector2((float)i / GrabButtons.Length, 1f);
+                rect.anchorMax = new Vector2((float)(i + 1) / GrabButtons.Length, 1.65f);
+                rect.offsetMin = new Vector2(2f, 4f);
+                rect.offsetMax = new Vector2(-2f, 4f);
+                var label = NearbyPanel.SetLabel(button, $"x{quantity}");
+                if (label != null)
+                {
+                    label.enableAutoSizing = true;
+                    label.fontSizeMax = label.fontSize * 0.8f;
+                    label.fontSizeMin = Mathf.Min(10f, label.fontSizeMax);
+                }
+            }
             go.SetActive(false);
         }
 
@@ -50,6 +82,8 @@ namespace NearbyChests
                 if (b != null) Object.Destroy(b.gameObject);
             _tab = _filterButton = null;
             _filterLabel = null; _filterText = null;
+            System.Array.Clear(GrabButtons, 0, GrabButtons.Length);
+            InvalidateGrabButtons();
             Active = false;
             _gui = null;
         }
@@ -91,6 +125,7 @@ namespace NearbyChests
             if (!Active) return;
             Active = false;
             SetActive(_filterButton, false);
+            InvalidateGrabButtons();
             if (_gui != null)
             {
                 _gui.m_tabCraft.interactable = _savedCraftInteractable;
@@ -215,12 +250,49 @@ namespace NearbyChests
                 string label = NearbyPanel.FilterRecipe != null && NearbyPanel.FilterRecipe == _gui.m_selectedRecipe.Recipe
                     ? "Clear filter" : "Filter chests";
                 if (_filterLabel != null && label != _filterText) { _filterLabel.text = label; _filterText = label; }
+                RefreshGrabButtons();
             }
 
             if (visible && Plugin.ToggleKey.Value.MainKey != KeyCode.None && !NearbyPanel.BlockGameInput && Plugin.ToggleKey.Value.IsDown())
             {
                 if (Active) _gui.OnTabCraftPressed(); else Activate();
             }
+        }
+
+        public static void InvalidateGrabButtons() => _grabRecipe = null;
+
+        private static void Grab(int quantity)
+        {
+            RecipeTaker.GrabSelected(_gui, quantity);
+            InvalidateGrabButtons();
+            if (RecipeTaker.HasSelectedRecipe() && Player.m_localPlayer != null) RefreshGrabButtons();
+        }
+
+        private static void RefreshGrabButtons()
+        {
+            var inventory = Player.m_localPlayer.GetInventory();
+            var recipe = _gui.m_selectedRecipe.Recipe;
+            var state = new System.HashCode();
+            state.Add(_gui.m_dragItem != null);
+            state.Add(_gui.m_selectedRecipe.ItemData?.m_quality ?? 0);
+            state.Add(Game.m_worldLevel);
+            state.Add(inventory.GetEmptySlots());
+            foreach (var req in _gui.m_reqList) state.Add(req);
+            foreach (var item in inventory.GetAllItems())
+            {
+                state.Add(item.m_shared.m_name);
+                state.Add(item.m_stack);
+                state.Add(item.m_quality);
+                state.Add(item.m_worldLevel);
+            }
+            int signature = state.ToHashCode();
+            if (recipe == _grabRecipe && signature == _grabState) return;
+            _grabRecipe = recipe;
+            _grabState = signature;
+            if (_gui.m_dragItem == null)
+                RecipeTaker.UpdateGrabButtons(_gui, inventory, GrabQuantities, GrabButtons);
+            else
+                foreach (var button in GrabButtons) button.interactable = false;
         }
 
         private static void SetActive(Button b, bool on)

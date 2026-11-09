@@ -7,7 +7,7 @@ namespace NearbyChests
 {
     // Client-only. While the inventory is open with no chest open, a "Nearby chests" panel fills the empty
     // container slot under your inventory and lists everything in the chests around you. Click an item to take
-    // it; click an ingredient in the crafting panel (or "Take recipe") to take what the selected recipe still needs.
+    // it, or use the grab buttons to take what the selected recipe still needs.
     //
     // Taking from a chest uses the same ownership hand-off vanilla "Take all" uses (ZNetView.ClaimOwnership, then
     // edit the inventory, which saves to the ZDO). Chests another player has open, private chests that aren't
