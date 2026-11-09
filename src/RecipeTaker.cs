@@ -89,14 +89,14 @@ namespace NearbyChests
             return gui != null && gui.m_selectedRecipe.Recipe != null && gui.m_reqList.Count > 0;
         }
 
-        public static void UpdateGrabButtons(InventoryGui gui, Inventory inventory, int[] quantities, Button[] buttons)
+        public static void UpdateGrabButtons(InventoryGui gui, Inventory inventory, int[] craftCounts, Button[] buttons)
         {
             var stock = GetGrabStock(gui);
             for (int i = 0; i < buttons.Length; i++)
-                buttons[i].interactable = PlanGrab(gui, inventory, quantities[i], stock)?.Count > 0;
+                buttons[i].interactable = PlanGrab(gui, inventory, craftCounts[i], stock)?.Count > 0;
         }
 
-        public static void GrabSelected(InventoryGui gui, int quantity)
+        public static void GrabSelected(InventoryGui gui, int crafts)
         {
             var player = Player.m_localPlayer;
             if (player == null || !Plugin.Enabled.Value || !NearbyTabs.Active || !InventoryGui.IsVisible() ||
@@ -108,7 +108,7 @@ namespace NearbyChests
             var blocked = new HashSet<Container>();
             while (true)
             {
-                var moves = PlanGrab(gui, inventory, quantity, GetGrabStock(gui, blocked));
+                var moves = PlanGrab(gui, inventory, crafts, GetGrabStock(gui, blocked));
                 if (moves == null || moves.Count == 0)
                 {
                     player.Message(MessageHud.MessageType.Center, "Available ingredients or inventory space changed");
@@ -146,7 +146,7 @@ namespace NearbyChests
                 .ToLookup(move => move.Item.m_shared.m_name);
         }
 
-        private static List<ChestPool.GrabMove> PlanGrab(InventoryGui gui, Inventory inventory, int quantity,
+        private static List<ChestPool.GrabMove> PlanGrab(InventoryGui gui, Inventory inventory, int crafts,
             ILookup<string, ChestPool.GrabMove> stock)
         {
             var recipe = gui.m_selectedRecipe.Recipe;
@@ -154,18 +154,16 @@ namespace NearbyChests
             int slotsLeft = Mathf.Max(0, inventory.GetEmptySlots());
             var plan = new List<ChestPool.GrabMove>();
 
-            // Vanilla crafts in whole batches and checks the amount available at a single ingredient quality.
+            // Vanilla checks the amount available at a single ingredient quality.
             if (recipe.m_requireOnlyOneIngredient)
             {
                 List<ChestPool.GrabMove> best = null;
                 foreach (var req in gui.m_reqList)
                 {
                     var ingredient = req.m_resItem.m_itemData.m_shared;
+                    int need = req.GetAmount(quality) * crafts;
                     for (int q = 1; q <= ingredient.m_maxQuality; q++)
                     {
-                        int yield = recipe.m_amount + Mathf.CeilToInt((q - 1) * recipe.m_amount * recipe.m_qualityResultAmountMultiplier)
-                            + req.m_extraAmountOnlyOneIngredient;
-                        int need = req.GetAmount(quality) * CraftsFor(quantity, yield);
                         var moves = PlanIngredient(inventory, ingredient.m_name, q, need, stock[ingredient.m_name], out int slots);
                         if (moves == null) continue;
                         if (moves.Count == 0) return moves;
@@ -177,7 +175,6 @@ namespace NearbyChests
                 return best;
             }
 
-            int crafts = CraftsFor(quantity, recipe.m_amount);
             foreach (var reqs in gui.m_reqList.GroupBy(req => req.m_resItem.m_itemData.m_shared.m_name))
             {
                 int need = reqs.Sum(req => req.GetAmount(quality)) * crafts;
@@ -204,8 +201,6 @@ namespace NearbyChests
             }
             return plan;
         }
-
-        private static int CraftsFor(int quantity, int yield) => 1 + (quantity - 1) / Mathf.Max(1, yield);
 
         private static List<ChestPool.GrabMove> PlanIngredient(Inventory inventory, string name, int quality, int need,
             IEnumerable<ChestPool.GrabMove> stock, out int slots)

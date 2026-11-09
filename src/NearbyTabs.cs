@@ -16,8 +16,8 @@ namespace NearbyChests
     {
         private static InventoryGui _gui;
         private static Button _tab, _filterButton;
-        private static readonly int[] GrabQuantities = { 1, 5, 10 };
-        private static readonly Button[] GrabButtons = new Button[GrabQuantities.Length];
+        private static readonly int[] GrabCraftCounts = { 1, 5, 10 };
+        private static readonly Button[] GrabButtons = new Button[GrabCraftCounts.Length];
         private static Recipe _grabRecipe;
         private static int _grabState;
         private static float _tabSpacing;
@@ -45,14 +45,14 @@ namespace NearbyChests
 
             for (int i = 0; i < GrabButtons.Length; i++)
             {
-                int quantity = GrabQuantities[i];
+                int crafts = GrabCraftCounts[i];
                 var button = Object.Instantiate(gui.m_craftButton, go.transform, false);
                 GrabButtons[i] = button;
-                button.name = $"NearbyChests_Grab{quantity}";
+                button.name = $"NearbyChests_Grab{crafts}";
                 var tooltip = button.GetComponent<UITooltip>();
                 if (tooltip != null) Object.Destroy(tooltip);
                 button.onClick = new Button.ButtonClickedEvent();
-                button.onClick.AddListener(() => Grab(quantity));
+                button.onClick.AddListener(() => Grab(crafts));
                 button.interactable = false;
                 button.gameObject.SetActive(true);
 
@@ -62,7 +62,7 @@ namespace NearbyChests
                 rect.anchorMax = new Vector2((float)(i + 1) / GrabButtons.Length, 0f);
                 rect.offsetMin = new Vector2(2f, -4f);
                 rect.offsetMax = new Vector2(-2f, -4f);
-                var label = NearbyPanel.SetLabel(button, $"x{quantity}");
+                var label = NearbyPanel.SetLabel(button, $"x{crafts}");
                 if (label != null)
                 {
                     label.enableAutoSizing = true;
@@ -261,9 +261,9 @@ namespace NearbyChests
 
         public static void InvalidateGrabButtons() => _grabRecipe = null;
 
-        private static void Grab(int quantity)
+        private static void Grab(int crafts)
         {
-            RecipeTaker.GrabSelected(_gui, quantity);
+            RecipeTaker.GrabSelected(_gui, crafts);
             InvalidateGrabButtons();
             if (RecipeTaker.HasSelectedRecipe() && Player.m_localPlayer != null) RefreshGrabButtons();
         }
@@ -290,7 +290,7 @@ namespace NearbyChests
             _grabRecipe = recipe;
             _grabState = signature;
             if (_gui.m_dragItem == null)
-                RecipeTaker.UpdateGrabButtons(_gui, inventory, GrabQuantities, GrabButtons);
+                RecipeTaker.UpdateGrabButtons(_gui, inventory, GrabCraftCounts, GrabButtons);
             else
                 foreach (var button in GrabButtons) button.interactable = false;
         }
