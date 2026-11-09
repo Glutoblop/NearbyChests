@@ -18,7 +18,7 @@ namespace NearbyChests
     {
         public const string Guid = "jordan.valheim.nearbychests";
         public const string Name = "Easy Crafting";
-        public const string Version = "0.1.9";
+        public const string Version = "0.1.10";
 
         internal static Plugin Instance;
         internal static ConfigEntry<bool> Enabled;
