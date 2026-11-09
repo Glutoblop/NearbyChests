@@ -22,7 +22,7 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
 - **You decide what to take**: drag stacks from the chests panel into your inventory, Shift-click to split, Ctrl-click to move a whole stack. Items come out of the real chests, nearest first.
 - **Store too**: drag an item from your inventory onto the chests panel, or Ctrl-click it in your inventory, to put it in the nearby chests.
 - **Hints**: in the crafting panel an ingredient amount turns yellow when you're short but nearby chests can cover it; its tooltip shows the nearby count.
-- **Queue repeat crafts**. In the Craft tab, the row below **Craft** shows how many crafts are queued and how many your inventory materials cover. Use **+** and **−** to set the count, then press **Craft** to run them one at a time. The count includes the craft in progress, and **Cancel** clears the queue. The queue stops if you run out of materials or space, change recipe, leave the Craft tab, or close your inventory.
+- **Queue repeat crafts**. The counter below **Craft** shows `queued / available`, based on your inventory materials. Use **+** and **−** to set the count. Press **−** at zero to queue the full available amount, then press **Craft** to run them one at a time. The count includes the craft in progress, and **Cancel** clears the queue. The queue stops if you run out of materials or space, change recipe, leave the Craft tab, or close your inventory.
 - Skips chests another player has open, private chests that aren't yours, and chests inside wards you can't access. Tombstones are excluded by default.
 
 ## Configuration (`BepInEx/config/jordan.valheim.nearbychests.cfg`)

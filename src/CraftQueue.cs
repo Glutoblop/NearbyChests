@@ -28,13 +28,23 @@ namespace NearbyChests
 
             _less = AddButton(gui, "Less", "−", 0f, 0.18f, -1);
             _more = AddButton(gui, "More", "+", 0.82f, 1f, 1);
+            var background = new GameObject("QueueCountBackground", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+            background.rectTransform.SetParent(_row, false);
+            PlaceBelow(background.rectTransform, 0.18f, 0.82f);
+            background.color = new Color(0f, 0f, 0f, 0.82f);
+            background.raycastTarget = false;
+
             _counter = new GameObject("QueueCount", typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<TMP_Text>();
-            _counter.rectTransform.SetParent(_row, false);
-            PlaceBelow(_counter.rectTransform, 0.18f, 0.82f);
+            _counter.rectTransform.SetParent(background.rectTransform, false);
+            _counter.rectTransform.anchorMin = Vector2.zero;
+            _counter.rectTransform.anchorMax = Vector2.one;
+            _counter.rectTransform.offsetMin = new Vector2(6f, 2f);
+            _counter.rectTransform.offsetMax = new Vector2(-6f, -2f);
             var craftLabel = gui.m_craftButton.GetComponentInChildren<TMP_Text>(true);
             _counter.font = craftLabel.font;
-            _counter.color = craftLabel.color;
+            _counter.color = Color.white;
             _counter.alignment = TextAlignmentOptions.Center;
+            _counter.textWrappingMode = TextWrappingModes.NoWrap;
             _counter.enableAutoSizing = true;
             _counter.fontSizeMin = 8f;
             _counter.fontSizeMax = craftLabel.fontSize;
@@ -99,26 +109,32 @@ namespace NearbyChests
             if (player == null || !CanShow(gui)) return;
             var recipe = gui.m_selectedRecipe.Recipe;
             int available = CountAvailable(recipe, player.GetInventory(), player.GetCurrentCraftingStation());
-            if (delta > 0 && _remaining < available && (_running || gui.m_craftTimer < 0f))
+            if (delta < 0 && _remaining > InFlight(gui))
+            {
+                if (--_remaining == 0) Clear(gui);
+            }
+            else if (delta > 0 ? CanAdd(gui, available) : CanWrap(gui, available))
             {
                 _recipe = recipe;
                 _variant = gui.m_selectedVariant;
-                _remaining++;
-            }
-            else if (delta < 0 && _remaining > InFlight(gui))
-            {
-                if (--_remaining == 0) Clear(gui);
+                _remaining = delta > 0 ? _remaining + 1 : available;
             }
             RefreshCounter(gui, available);
         }
 
         private static int InFlight(InventoryGui gui) => _running && gui.m_craftTimer >= 0f ? 1 : 0;
 
+        private static bool CanAdd(InventoryGui gui, int available) =>
+            _remaining < available && (_running || gui.m_craftTimer < 0f);
+
+        private static bool CanWrap(InventoryGui gui, int available) =>
+            _remaining == 0 && gui.m_craftTimer < 0f && available > 0 && available != int.MaxValue;
+
         private static void RefreshCounter(InventoryGui gui, int available)
         {
-            _counter.SetText(available == int.MaxValue ? "Queued: {0}\nAvailable: ∞" : "Queued: {0}\nAvailable: {1}", _remaining, available);
-            _less.interactable = _remaining > InFlight(gui);
-            _more.interactable = _remaining < available && (_running || gui.m_craftTimer < 0f);
+            _counter.SetText(available == int.MaxValue ? "{0} / ∞" : "{0} / {1}", _remaining, available);
+            _less.interactable = _remaining > InFlight(gui) || CanWrap(gui, available);
+            _more.interactable = CanAdd(gui, available);
         }
 
         // When a count is staged, Craft starts the queue. With an empty queue, the button works as usual.
