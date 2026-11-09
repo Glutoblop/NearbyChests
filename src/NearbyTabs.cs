@@ -10,7 +10,7 @@ namespace NearbyChests
     ///   - the normal crafting list shows every recipe the character has unlocked, whatever station you're at
     ///     (or none), with its ingredients; Recipe Search works on it as usual;
     ///   - the Nearby chests panel is shown beside the crafting panel;
-    ///   - grab buttons above "Filter chests" take the ingredients the selected recipe is missing.
+    ///   - grab buttons below "Filter chests" take the ingredients the selected recipe is missing.
     /// </summary>
     internal static class NearbyTabs
     {
@@ -58,10 +58,10 @@ namespace NearbyChests
 
                 var rect = (RectTransform)button.transform;
                 rect.localScale = Vector3.one;
-                rect.anchorMin = new Vector2((float)i / GrabButtons.Length, 1f);
-                rect.anchorMax = new Vector2((float)(i + 1) / GrabButtons.Length, 1.65f);
-                rect.offsetMin = new Vector2(2f, 4f);
-                rect.offsetMax = new Vector2(-2f, 4f);
+                rect.anchorMin = new Vector2((float)i / GrabButtons.Length, -0.65f);
+                rect.anchorMax = new Vector2((float)(i + 1) / GrabButtons.Length, 0f);
+                rect.offsetMin = new Vector2(2f, -4f);
+                rect.offsetMax = new Vector2(-2f, -4f);
                 var label = NearbyPanel.SetLabel(button, $"x{quantity}");
                 if (label != null)
                 {
