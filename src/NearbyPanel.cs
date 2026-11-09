@@ -26,8 +26,6 @@ namespace NearbyChests
         /// <summary>The fake inventory the grid displays. Never holds real items.</summary>
         public static Inventory View { get; private set; }
         private static TMP_Text _title;
-        private static Button _takeRecipe;
-        private static TMP_Text _takeRecipeLabel;
         private static TMP_Text _reqStrip;
         private static bool _loggedLayout;
         private static readonly HashSet<string> _filterNames = new HashSet<string>();
@@ -94,14 +92,8 @@ namespace NearbyChests
             var weight = Find<TMP_Text>(src, gui.m_containerWeight.transform);
             if (weight != null) weight.gameObject.SetActive(false);
 
-            _takeRecipe = Find<Button>(src, gui.m_takeAllButton.transform);
-            if (_takeRecipe != null)
-            {
-                _takeRecipe.onClick = new Button.ButtonClickedEvent();
-                _takeRecipe.onClick.AddListener(ClearFilter);
-                _takeRecipeLabel = SetLabel(_takeRecipe, "Clear filter");
-                _takeRecipe.gameObject.SetActive(false);
-            }
+            var takeAll = Find<Button>(src, gui.m_takeAllButton.transform);
+            if (takeAll != null) takeAll.gameObject.SetActive(false);
 
             var stackAll = Find<Button>(src, gui.m_stackAllButton.transform);
             if (stackAll != null) stackAll.gameObject.SetActive(false);
@@ -130,7 +122,7 @@ namespace NearbyChests
         {
             NearbyTabs.Destroy();
             if (_root != null) Object.Destroy(_root);
-            _root = null; Grid = null; _title = null; _takeRecipe = null; _takeRecipeLabel = null; _search = null; _gui = null;
+            _root = null; Grid = null; _title = null; _search = null; _gui = null;
             _byViewItem.Clear();
         }
 
@@ -173,8 +165,6 @@ namespace NearbyChests
             LogLayoutOnce();
             Grid.UpdateInventory(View, null, _gui.m_dragItem);
             if (_resetView) { Grid.ResetView(); _resetView = false; }
-            if (_takeRecipe != null && _takeRecipe.gameObject.activeSelf != (FilterRecipe != null))
-                _takeRecipe.gameObject.SetActive(FilterRecipe != null);
             UpdateRequirementStrip(player);
         }
 
@@ -183,8 +173,9 @@ namespace NearbyChests
         /// <summary>The "Filter chests" button (in place of Craft): show only the selected recipe's ingredients, or clear.</summary>
         public static void ToggleFilterForSelected()
         {
+            if (FilterRecipe != null) { ClearFilter(); return; }
             var recipe = _gui != null && RecipeTaker.HasSelectedRecipe() ? _gui.m_selectedRecipe.Recipe : null;
-            if (recipe == null || recipe == FilterRecipe) { ClearFilter(); return; }
+            if (recipe == null) return;
             FilterRecipe = recipe;
             _filterNames.Clear();
             foreach (var req in recipe.m_resources)
@@ -193,9 +184,8 @@ namespace NearbyChests
             ForceRescan();
         }
 
-        public static void ClearFilter()
+        private static void ClearFilter()
         {
-            if (FilterRecipe == null) return;
             FilterRecipe = null;
             _filterNames.Clear();
             _resetView = true;

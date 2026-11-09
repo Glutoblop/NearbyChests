@@ -10,7 +10,7 @@ namespace NearbyChests
     ///   - the normal crafting list shows every recipe the character has unlocked, whatever station you're at
     ///     (or none), with its ingredients; Recipe Search works on it as usual;
     ///   - the Nearby chests panel is shown beside the crafting panel;
-    ///   - grab buttons below "Filter chests" take the ingredients the selected recipe is missing.
+    ///   - grab buttons below "Filter chests" take enough ingredients for 1, 5 or 10 crafts.
     /// </summary>
     internal static class NearbyTabs
     {
@@ -242,15 +242,17 @@ namespace NearbyChests
             if (tabVisible) PlaceTab();
 
             // In the Nearby tab the Craft button becomes "Filter chests" (runs after vanilla's UpdateRecipe each frame).
-            bool showFilter = visible && Active && !_gui.IsContainerOpen() && RecipeTaker.HasSelectedRecipe();
+            bool hasRecipe = RecipeTaker.HasSelectedRecipe();
+            bool filtered = NearbyPanel.FilterRecipe != null;
+            bool showFilter = tabVisible && Active && (hasRecipe || filtered);
             if (showFilter && _gui.m_craftButton.gameObject.activeSelf) _gui.m_craftButton.gameObject.SetActive(false);
             SetActive(_filterButton, showFilter);
             if (showFilter)
             {
-                string label = NearbyPanel.FilterRecipe != null && NearbyPanel.FilterRecipe == _gui.m_selectedRecipe.Recipe
-                    ? "Clear filter" : "Filter chests";
+                string label = filtered ? "Clear filter" : "Filter chests";
                 if (_filterLabel != null && label != _filterText) { _filterLabel.text = label; _filterText = label; }
-                RefreshGrabButtons();
+                foreach (var button in GrabButtons) SetActive(button, hasRecipe);
+                if (hasRecipe) RefreshGrabButtons();
             }
 
             if (visible && Plugin.ToggleKey.Value.MainKey != KeyCode.None && !NearbyPanel.BlockGameInput && Plugin.ToggleKey.Value.IsDown())

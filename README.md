@@ -16,7 +16,8 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
   - Recipes your inventory plus the nearby chests can cover are listed bright (gold name) instead of greyed out; ones you can craft right now stay white.
 - **Everything in nearby chests**: a panel in the middle of the screen, just left of the crafting panel, shows the combined contents of every chest within 30 m, as normal stacks, with its own search box. It scrolls when there's more than fits.
 - **Move it**: drag the chests panel by its title bar to put it wherever you like (the spot is saved); right-click the title bar to reset it.
-- **Filter by recipe**: in the Nearby tab the Craft button becomes **Filter chests**. Select a recipe, press it, and the chests panel shows only that recipe's ingredients. Press it again (or **Clear filter**) to see everything.
+- **Filter by recipe**. Select a recipe in the Nearby tab and press **Filter chests** to see only that recipe's ingredients. The same button becomes **Clear filter** while the filter is active.
+- **Grab recipe ingredients**. The **x1**, **x5**, and **x10** buttons pull the full ingredient cost for that many crafts when nearby chests have the stock and your inventory has room.
 - **Required amounts**: below the chests panel, the selected/filtered recipe's ingredients are listed as *need / have / in chests* (green = you have enough, yellow = the chests can cover it, red = not enough).
 - **You decide what to take**: drag stacks from the chests panel into your inventory, Shift-click to split, Ctrl-click to move a whole stack. Items come out of the real chests, nearest first.
 - **Store too**: drag an item from your inventory onto the chests panel, or Ctrl-click it in your inventory, to put it in the nearby chests.

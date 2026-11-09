@@ -93,7 +93,7 @@ namespace NearbyChests
         {
             var stock = GetGrabStock(gui);
             for (int i = 0; i < buttons.Length; i++)
-                buttons[i].interactable = PlanGrab(gui, inventory, craftCounts[i], stock)?.Count > 0;
+                buttons[i].interactable = PlanGrab(gui, inventory, craftCounts[i], stock) != null;
         }
 
         public static void GrabSelected(InventoryGui gui, int crafts)
@@ -109,12 +109,11 @@ namespace NearbyChests
             while (true)
             {
                 var moves = PlanGrab(gui, inventory, crafts, GetGrabStock(gui, blocked));
-                if (moves == null || moves.Count == 0)
+                if (moves == null)
                 {
                     player.Message(MessageHud.MessageType.Center, "Available ingredients or inventory space changed");
                     break;
                 }
-
                 var next = moves.FirstOrDefault(move => !acquired.Contains(move.Chest)).Chest;
                 if (next == null)
                 {
@@ -164,10 +163,8 @@ namespace NearbyChests
                     int need = req.GetAmount(quality) * crafts;
                     for (int q = 1; q <= ingredient.m_maxQuality; q++)
                     {
-                        var moves = PlanIngredient(inventory, ingredient.m_name, q, need, stock[ingredient.m_name], out int slots);
-                        if (moves == null) continue;
-                        if (moves.Count == 0) return moves;
-                        if (slots > slotsLeft) continue;
+                        var moves = PlanIngredient(inventory, q, need, stock[ingredient.m_name], out int slots);
+                        if (moves == null || slots > slotsLeft) continue;
                         best = moves;
                         slotsLeft = slots - 1;
                     }
@@ -183,15 +180,8 @@ namespace NearbyChests
                 int bestSlots = slotsLeft + 1;
                 for (int q = 1; q <= maxQuality; q++)
                 {
-                    var moves = PlanIngredient(inventory, reqs.Key, q, need, stock[reqs.Key], out int slots);
-                    if (moves == null) continue;
-                    if (moves.Count == 0)
-                    {
-                        best = moves;
-                        bestSlots = 0;
-                        break;
-                    }
-                    if (slots >= bestSlots) continue;
+                    var moves = PlanIngredient(inventory, q, need, stock[reqs.Key], out int slots);
+                    if (moves == null || slots >= bestSlots) continue;
                     best = moves;
                     bestSlots = slots;
                 }
@@ -199,16 +189,14 @@ namespace NearbyChests
                 slotsLeft -= bestSlots;
                 plan.AddRange(best);
             }
-            return plan;
+            return plan.Count > 0 ? plan : null;
         }
 
-        private static List<ChestPool.GrabMove> PlanIngredient(Inventory inventory, string name, int quality, int need,
+        private static List<ChestPool.GrabMove> PlanIngredient(Inventory inventory, int quality, int need,
             IEnumerable<ChestPool.GrabMove> stock, out int slots)
         {
             slots = 0;
-            var plan = new List<ChestPool.GrabMove>();
-            int missing = need - inventory.CountItems(name, quality);
-            if (missing <= 0) return plan;
+            if (need <= 0) return null;
 
             var stacks = stock.Where(move => move.Item.m_quality == quality)
                 .GroupBy(move => move.Item.m_worldLevel)
@@ -220,18 +208,19 @@ namespace NearbyChests
                     return (sources: group, total, room, maxStack: sample.m_shared.m_maxStackSize);
                 })
                 .ToList();
-            if (stacks.Sum(stack => stack.total) < missing) return null;
+            if (stacks.Sum(stack => stack.total) < need) return null;
 
             // Fill compatible stacks first, then use whichever stock would fill the most of the next slot.
             var amounts = new int[stacks.Count];
-            for (int i = 0; i < stacks.Count && missing > 0; i++)
+            int remaining = need;
+            for (int i = 0; i < stacks.Count && remaining > 0; i++)
             {
-                amounts[i] = Mathf.Min(missing, stacks[i].room);
-                missing -= amounts[i];
+                amounts[i] = Mathf.Min(remaining, stacks[i].room);
+                remaining -= amounts[i];
             }
 
             int freeSlots = inventory.GetEmptySlots();
-            while (missing > 0)
+            while (remaining > 0)
             {
                 if (slots >= freeSlots) return null;
                 int best = 0, capacity = 0;
@@ -243,12 +232,13 @@ namespace NearbyChests
                     capacity = available;
                 }
                 if (capacity == 0) return null;
-                int take = Mathf.Min(missing, capacity);
+                int take = Mathf.Min(remaining, capacity);
                 amounts[best] += take;
-                missing -= take;
+                remaining -= take;
                 slots++;
             }
 
+            var plan = new List<ChestPool.GrabMove>();
             for (int i = 0; i < stacks.Count; i++)
             {
                 int take = amounts[i];
