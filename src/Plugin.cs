@@ -18,7 +18,7 @@ namespace NearbyChests
     {
         public const string Guid = "jordan.valheim.nearbychests";
         public const string Name = "Nearby Chests";
-        public const string Version = "0.1.5";
+        public const string Version = "0.1.6";
 
         internal static Plugin Instance;
         internal static ConfigEntry<bool> Enabled;
