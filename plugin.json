@@ -3,7 +3,7 @@
   "id": "NearbyChests",
   "name": "Nearby Chests",
   "guid": "jordan.valheim.nearbychests",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": "Glutoblop",
   "description": "Adds a Nearby chests panel to your inventory listing everything in chests within 30m, and lets you take items, or a selected recipe's missing ingredients, straight into your inventory.",
   "repo": "Glutoblop/NearbyChests",
@@ -21,6 +21,7 @@
     "last_tested": "2026-11-06"
   },
   "changelog": {
+    "0.1.5": "Move the x1, x5, and x10 ingredient grab buttons below Filter chests.",
     "0.1.4": "Add x1, x5, and x10 ingredient grabs above Filter chests, with chest stock and inventory slot checks.",
     "0.1.3": "Mod Settings button in the pause menu: change this plugin's settings in game (one tab per plugin).",
     "0.1.2": "Nearby tab lists unlocked build pieces (Hammer/Hoe/Cultivator) with their ingredients; Chests panel sits just left of the crafting panel and below pop-up dialogs (split stack); Drag the chests panel by its title bar to move it; right-click to reset; Left-align the chests panel title with padding",
