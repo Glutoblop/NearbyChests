@@ -1,10 +1,10 @@
-# Nearby Chests
+# Easy Crafting
 
-![version](https://img.shields.io/badge/version-0.1.0-blue) ![valheim](https://img.shields.io/badge/Valheim-1.0.21-orange) ![client](https://img.shields.io/badge/client--side-only-green)
+![version](https://img.shields.io/github/v/release/Glutoblop/NearbyChests) ![valheim](https://img.shields.io/badge/Valheim-1.0.21-orange) ![client](https://img.shields.io/badge/client--side-only-green)
 
-A BepInEx plugin for Valheim.
+Easy Crafting, previously called Nearby Chests, is a BepInEx plugin for Valheim.
 
-Open your inventory and see everything stored in the chests around you, in one place, then take what you need without walking to each chest. Pick a recipe at a crafting station and pull its missing ingredients from those chests with one click.
+Browse unlocked recipes and nearby chests, pull recipe ingredients into your inventory, and queue repeat crafts that run one at a time using Valheim's normal crafting timer.
 
 Pairs well with [Recipe Search](https://github.com/Glutoblop/RecipeSearch) for finding the recipe first.
 
@@ -44,7 +44,7 @@ Adds a **Nearby** tab next to **Craft** / **Upgrade**. Selecting it shows everyt
 ## Install
 
 ### Easiest: Valheim Mod Installer
-Download the [**Valheim Mod Installer**](https://github.com/Glutoblop/ValheimPlugins) and run it (`Start-Installer.bat` on Windows, `start-installer.sh` on Linux/macOS), point it at your Valheim folder, tick **Nearby Chests** and click **Install / Update**. It installs BepInEx for you if needed.
+Download the [**Valheim Mod Installer**](https://github.com/Glutoblop/ValheimPlugins) and run it (`Start-Installer.bat` on Windows, `start-installer.sh` on Linux/macOS), point it at your Valheim folder, tick **Easy Crafting** and click **Install / Update**. It installs BepInEx for you if needed.
 
 ### Manual
 Download from the [latest release](https://github.com/Glutoblop/NearbyChests/releases/latest) ([`NearbyChests.zip`](https://github.com/Glutoblop/NearbyChests/releases/latest/download/NearbyChests.zip): unzip into your Valheim folder), or:
@@ -58,7 +58,6 @@ Download from the [latest release](https://github.com/Glutoblop/NearbyChests/rel
 
 | | |
 |---|---|
-| Plugin version | **0.1.0** |
 | Last tested on Valheim | **1.0.21** (network version 41, Steam build 26249040) on 2026-11-06 |
 | BepInExPack_Valheim | 5.4.2360 |
 | Multiplayer | Client-side only: works on vanilla servers, other players don't need it |

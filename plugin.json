@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "id": "NearbyChests",
-  "name": "Nearby Chests",
+  "name": "Easy Crafting",
   "guid": "jordan.valheim.nearbychests",
   "version": "0.1.8",
   "author": "Glutoblop",
-  "description": "Adds a Nearby chests panel to your inventory listing everything in chests within 30m, and lets you take items, or a selected recipe's missing ingredients, straight into your inventory.",
+  "description": "Browse unlocked recipes and nearby chests, pull recipe ingredients into your inventory, and queue repeat crafts that run one at a time using Valheim's normal crafting timer.",
   "repo": "Glutoblop/NearbyChests",
   "branch": "main",
   "client_only": true,

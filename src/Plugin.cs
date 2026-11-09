@@ -17,7 +17,7 @@ namespace NearbyChests
     public class Plugin : BaseUnityPlugin
     {
         public const string Guid = "jordan.valheim.nearbychests";
-        public const string Name = "Nearby Chests";
+        public const string Name = "Easy Crafting";
         public const string Version = "0.1.8";
 
         internal static Plugin Instance;
