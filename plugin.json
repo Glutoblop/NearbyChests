@@ -3,7 +3,7 @@
   "id": "NearbyChests",
   "name": "Nearby Chests",
   "guid": "jordan.valheim.nearbychests",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "author": "Glutoblop",
   "description": "Adds a Nearby chests panel to your inventory listing everything in chests within 30m, and lets you take items, or a selected recipe's missing ingredients, straight into your inventory.",
   "repo": "Glutoblop/NearbyChests",
@@ -21,6 +21,7 @@
     "last_tested": "2026-11-06"
   },
   "changelog": {
+    "0.1.8": "Queue repeat crafts from the Craft tab with plus and minus controls and an inventory-only availability count. Each craft uses the normal Valheim timer and consumes materials separately.",
     "0.1.7": "Grab buttons pull the full ingredient cost for 1, 5, or 10 crafts when nearby chests have enough and your inventory has room. The main filter button now also clears the active filter.",
     "0.1.6": "The x1, x5, and x10 buttons now gather ingredients for that many crafts, including recipes that yield multiple items per craft.",
     "0.1.5": "Move the x1, x5, and x10 ingredient grab buttons below Filter chests.",
